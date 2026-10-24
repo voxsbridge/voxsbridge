@@ -145,11 +145,17 @@ function markEnded(reason) {
     function endReason(call) {
         const cause = ((call && call.cause) || '').toUpperCase();
         const sip = Number((call && call.sipCode) || 0);
+        const reason = (call && (call.sipReason || call.sip_reason)) || '';
+        // Show the provider's own code so failed calls can be diagnosed.
+        const detail = [sip || '', cause, reason && String(reason) !== cause ? reason : '']
+            .filter(Boolean).join(' ');
+        if (sip || cause) console.warn('[VoxsBridge] call ended:', { cause, sipCode: sip, sipReason: reason, causeCode: call && call.causeCode });
+        const tag = detail ? ' (' + detail + ')' : '';
         if (cause.includes('BUSY') || sip === 486) return 'Busy';
-        if (cause.includes('REJECT') || sip === 603) return 'Call declined';
+        if (cause.includes('REJECT') || sip === 603) return 'Call declined' + tag;
         if (cause.includes('NO_ANSWER') || sip === 408) return 'No answer';
         if (sip === 480 || sip === 487) return 'No answer';
-        return 'Call ended';
+        return 'Call ended' + (sip >= 400 ? tag : '');
     }
     function callIsDead(call) {
         if (!call) return false;
@@ -464,9 +470,11 @@ function markEnded(reason) {
                 const endedNow = blob.includes('telnyx_rtc.bye') || blob.includes('normal_clearing') || blob.includes('call_rejected') || blob.includes('user_busy') || blob.includes('originator_cancel') || blob.includes('no_answer') || blob.includes('no_user_response');
                 if (!endedNow) return;
                 const params = msg.params || {};
+                console.warn('[VoxsBridge] provider hangup message:', msg);
                 markEnded(endReason({
                     cause: params.cause || params.sipReason || params.sip_reason || '',
-                    sipCode: params.sipCode || params.sip_code || 0
+                    sipCode: params.sipCode || params.sip_code || 0,
+                    sipReason: params.sipReason || params.sip_reason || ''
                 }));
             });
             client.on('telnyx.notification', (n) => {
