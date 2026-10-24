@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Companies — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Companies</h1><p class="muted">Customers with one or more users. Open a company to see its team, owners and reseller.</p></div>
+  <button type="button" class="btn btn-primary" onclick="document.getElementById('newCompany').showModal()">+ New Company</button>
+</div>
+<div class="team-stats">
+  <div class="team-stat"><small>Companies</small><strong>{{ companies|length }}</strong></div>
+  <div class="team-stat"><small>Users</small><strong>{{ companies|sum(attribute='users') }}</strong></div>
+  <div class="team-stat ok"><small>Online now</small><strong>{{ companies|sum(attribute='online') }}</strong></div>
+  <div class="team-stat"><small>With a reseller</small><strong>{{ companies|selectattr('reseller_id')|list|length }}</strong></div>
+</div>
+<section class="panel">
+  <input type="search" id="companySearch" class="dn-search" placeholder="Search company, owner or reseller" aria-label="Search companies">
+  <div class="table-scroll"><table class="modern-table company-table">
+    <thead><tr><th>Company</th><th>Owner(s)</th><th>Users</th><th>Online</th><th>Reseller</th><th></th></tr></thead>
+    <tbody>
+    {% for c in companies %}
+    <tr data-search="{{ (c.name ~ ' ' ~ (c.owners or '') ~ ' ' ~ (c.reseller_name or ''))|lower }}">
+      <td><strong>{{ c.name }}</strong></td>
+      <td>{{ c.owners or '—' }}</td>
+      <td>{{ c.users }}</td>
+      <td>{% if c.online %}<span class="dn-pill ok">{{ c.online }} online</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{{ c.reseller_name or 'Direct' }}</td>
+      <td><a class="dn-btn" href="/companies/{{ c.id }}">Open →</a></td>
+    </tr>
+    {% else %}<tr><td colspan="6" class="empty-note">No companies yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+<dialog class="module-dialog" id="newCompany">
+  <form method="post" action="/companies">
+    <div class="module-dialog-head"><h2>New company</h2><button type="button" class="module-close" onclick="this.closest('dialog').close()" aria-label="Close">&times;</button></div>
+    <div class="module-fields">
+      <label class="module-wide">Company name<input name="name" required maxlength="200" placeholder="e.g. Khan Traders"></label>
+      <label class="module-wide">Reseller<select name="reseller_id"><option value="">Direct customer (no reseller)</option>{% for r in resellers %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label>
+    </div>
+    <p class="muted" style="margin-top:12px;font-size:12px">After creating it, add users from the Users page (choose this company) or move existing users in.</p>
+    <div class="module-dialog-actions"><button type="button" class="module-btn" onclick="this.closest('dialog').close()">Cancel</button><button class="module-btn primary">Create company</button></div>
+  </form>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('companySearch').addEventListener('input', (e) => {
+  const q = e.target.value.toLowerCase().trim();
+  document.querySelectorAll('.company-table tbody tr[data-search]').forEach((r) => { r.hidden = !r.dataset.search.includes(q); });
+});
+</script>
+{% endblock %}

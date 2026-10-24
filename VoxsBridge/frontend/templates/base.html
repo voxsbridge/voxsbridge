@@ -1,0 +1,195 @@
+{%- set is_admin = user.role == 'admin' -%}
+{%- set reseller = is_reseller(user) -%}
+{%- set p = request.url.path -%}
+{%- macro icon(name) -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'dashboard' -%}<rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/>
+{%- elif name == 'team' -%}<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M17 4a4 4 0 0 1 0 8M22 21c0-3-2-5-4-5.5"/>
+{%- elif name == 'phone' -%}<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/>
+{%- elif name == 'message' -%}<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+{%- elif name == 'voicemail' -%}<circle cx="6" cy="12" r="4"/><circle cx="18" cy="12" r="4"/><path d="M6 16h12"/>
+{%- elif name == 'record' -%}<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor"/>
+{%- elif name == 'bolt' -%}<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>
+{%- elif name == 'contact' -%}<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>
+{%- elif name == 'crm' -%}<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>
+{%- elif name == 'campaign' -%}<path d="M3 11l18-8v18L3 13z"/><path d="M7 13v5"/>
+{%- elif name == 'calendar' -%}<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+{%- elif name == 'script' -%}<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>
+{%- elif name == 'card' -%}<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
+{%- elif name == 'customers' -%}<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>
+{%- elif name == 'invoice' -%}<path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/>
+{%- elif name == 'users' -%}<circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/><path d="M19 8l2 2 3-3" transform="translate(-2 0)"/>
+{%- elif name == 'building' -%}<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/>
+{%- elif name == 'handshake' -%}<path d="M11 17l2 2a1 1 0 1 0 3-3"/><path d="M14 14l2.5 2.5a1 1 0 1 0 3-3l-3.9-3.9a3 3 0 0 0-4.2 0l-.9.9a1 1 0 1 1-3-3l2.8-2.8a5.8 5.8 0 0 1 7.1-.9l.5.3a2 2 0 0 0 1.4.2L21 4"/><path d="M21 3l1 11h-2M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3M3 4h8"/>
+{%- elif name == 'settings' -%}<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+{%- elif name == 'menu' -%}<path d="M4 6h16M4 12h16M4 18h16"/>
+{%- endif -%}
+</svg>
+{%- endmacro -%}
+{%- macro nav(href, label, ic, active) -%}
+<a href="{{ href }}" class="{% if active %}active{% endif %}"><span class="ni">{{ icon(ic) }}</span><span>{{ label }}</span></a>
+{%- endmacro -%}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#060b1a">
+    <title>{% block title %}VoxsBridge{% endblock %}</title>
+    <script>try{if(localStorage.getItem('voxsbridge-theme')==='light')document.documentElement.classList.add('theme-light-preload')}catch(e){}</script>
+    <link rel="icon" href="{{ brand_icon }}">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="/static/js/csrf.js"></script>
+    <script src="/static/js/page-nav.js"></script>
+</head>
+<body class="vb{% if reseller %} no-rail is-reseller{% endif %}{% if is_admin %} no-rail is-admin{% endif %}">
+    <script>try{if(localStorage.getItem('voxsbridge-theme')==='light')document.body.classList.add('light-theme')}catch(e){}</script>
+    <div class="shell">
+        <header class="shell-top">
+            <a href="/dashboard" class="brand" aria-label="{{ brand_name }} dashboard">
+                <img class="brand-logo brand-logo-dark" src="{{ brand_header_dark }}" alt="{{ brand_name }}">
+                <img class="brand-logo brand-logo-light" src="{{ brand_header }}" alt="{{ brand_name }}">
+                <img class="brand-icon brand-icon-dark" src="{{ brand_icon_dark }}" alt="" aria-hidden="true">
+                <img class="brand-icon brand-icon-light" src="{{ brand_icon }}" alt="" aria-hidden="true">
+            </a>
+            <label class="shell-search">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+                <input type="search" placeholder="{% if is_admin %}Search customers, companies, invoices...{% else %}Search contacts, calls, campaigns...{% endif %}" id="globalSearch">
+            </label>
+            <div class="shell-tools">
+                {% if is_admin %}
+                <span class="vb-status vb-status-admin"><i></i>Admin Console</span>
+                {% elif not reseller %}
+                <span class="vb-status {% if user.phone_number %}is-wait{% else %}is-off{% endif %}" id="vbLineStatus"><i></i><span>{% if user.phone_number %}Connecting…{% else %}No line{% endif %}</span></span>
+                <a href="/billing" class="refer-btn">Invite &amp; Earn</a>
+                {% endif %}
+                <button type="button" class="header-icon" id="themeToggle" title="Switch theme" aria-label="Switch theme">☾</button>
+                <a class="header-icon" href="https://api.whatsapp.com/send?phone={{ support_whatsapp }}" target="_blank" rel="noopener noreferrer" title="WhatsApp Support">?</a>
+                <button type="button" class="avatar-pill profile-button" id="profileToggle" aria-expanded="false" aria-label="Profile menu">{{ user.name[0]|upper }}</button>
+                <div class="profile-menu" id="profileMenu" hidden>
+                  <div class="profile-heading"><span class="avatar-pill">{{ user.name[0]|upper }}</span><div class="profile-identity"><strong>{{ user.name }}</strong><small>{% if is_admin %}Administrator{% else %}{{ user.role|capitalize }} account{% endif %}</small></div><span class="online-label">● Online</span></div>
+                  {% if not is_admin %}
+                  <label class="profile-entry dnd-entry"><span class="profile-entry-icon">☾</span><span class="profile-entry-label">Do Not Disturb<small>Mute incoming calls</small></span><input type="checkbox" id="dndToggle" aria-label="Do not disturb"></label>
+                  {% endif %}
+                  <div class="profile-separator"></div>
+                  <a class="profile-entry" href="/dashboard"><span class="profile-entry-icon">▦</span><span class="profile-entry-label">Dashboard</span><span class="profile-chevron">›</span></a>
+                  <a class="profile-entry" href="/settings"><span class="profile-entry-icon">♙</span><span class="profile-entry-label">My Profile</span><span class="profile-chevron">›</span></a>
+                  {% if not is_admin %}
+                  <a class="profile-entry" href="/settings/calling"><span class="profile-entry-icon">♫</span><span class="profile-entry-label">Calling Preferences</span><span class="profile-chevron">›</span></a>
+                  <a class="profile-entry" href="/billing"><span class="profile-entry-icon">▤</span><span class="profile-entry-label">Billing</span><span class="profile-chevron">›</span></a>
+                  {% endif %}
+                  <a class="profile-entry" href="https://api.whatsapp.com/send?phone={{ support_whatsapp }}" target="_blank" rel="noopener noreferrer"><span class="profile-entry-icon">?</span><span class="profile-entry-label">Help &amp; Support</span><span class="profile-chevron">↗</span></a>
+                  <button class="profile-entry" type="button" id="shortcutHelp"><span class="profile-entry-icon">⌨</span><span class="profile-entry-label">Keyboard Shortcuts</span><span class="profile-chevron">›</span></button>
+                  {% if not is_admin and not reseller %}
+                  <button class="profile-entry" type="button" id="tourHelp"><span class="profile-entry-icon">◇</span><span class="profile-entry-label">Take the Tour</span><span class="profile-chevron">›</span></button>
+                  {% endif %}
+                  <div class="profile-separator"></div>
+                  <a class="profile-entry signout" href="/logout"><span class="profile-entry-icon">↪</span><span class="profile-entry-label">Sign Out</span></a>
+                </div>
+            </div>
+        </header>
+        <div class="shell-body">
+            <aside class="shell-nav" id="shellNav">
+                <button type="button" class="nav-collapse" onclick="document.body.classList.toggle('nav-collapsed')" title="Collapse">‹</button>
+                <nav>
+                    {% if reseller %}
+                    <h6 class="nav-group">PARTNER</h6>
+                    {{ nav('/clients', 'My Clients', 'building', p.startswith('/clients') or p.startswith('/team')) }}
+                    {% elif is_admin %}
+                    <h6 class="nav-group">OVERVIEW</h6>
+                    {{ nav('/dashboard', 'Dashboard', 'dashboard', p == '/dashboard') }}
+                    <h6 class="nav-group">CUSTOMERS</h6>
+                    {{ nav('/customers', 'Customers', 'customers', p.startswith('/customers')) }}
+                    {{ nav('/companies', 'Companies', 'building', p.startswith('/companies') or p.startswith('/team')) }}
+                    {{ nav('/users', 'User Accounts', 'users', p == '/users') }}
+                    <h6 class="nav-group">PARTNERS</h6>
+                    {{ nav('/resellers', 'Resellers', 'handshake', p.startswith('/resellers')) }}
+                    <h6 class="nav-group">FINANCE</h6>
+                    {{ nav('/invoices', 'Invoices', 'invoice', p.startswith('/invoices')) }}
+                    {% else %}
+                    <h6 class="nav-group">OVERVIEW</h6>
+                    {{ nav('/dashboard', 'Dashboard', 'dashboard', p == '/dashboard') }}
+                    {% if is_owner(user) %}{{ nav('/team', 'Team', 'team', p.startswith('/team')) }}{% endif %}
+                    <h6 class="nav-group">CALLING</h6>
+                    {{ nav('/call-logs', 'Call History', 'phone', p == '/call-logs') }}
+                    {{ nav('/messages', 'Messages', 'message', p == '/messages') }}
+                    {{ nav('/voicemails', 'Voicemail', 'voicemail', p == '/voicemails') }}
+                    {{ nav('/recordings', 'Recordings', 'record', p == '/recordings') }}
+                    {{ nav('/power-dialer', 'Power Dialer', 'bolt', p == '/power-dialer') }}
+                    <h6 class="nav-group">CUSTOMERS</h6>
+                    {{ nav('/contacts', 'Contacts', 'contact', p == '/contacts') }}
+                    {{ nav('/crm', 'CRM Pipeline', 'crm', p == '/crm') }}
+                    {{ nav('/campaigns', 'Campaigns', 'campaign', p == '/campaigns') }}
+                    {{ nav('/follow-ups', 'Callbacks', 'calendar', p == '/follow-ups') }}
+                    {{ nav('/scripts', 'Call Scripts', 'script', p == '/scripts') }}
+                    <h6 class="nav-group">ACCOUNT</h6>
+                    {{ nav('/billing', 'Billing', 'card', p == '/billing') }}
+                    {% endif %}
+                </nav>
+                <a href="/settings" class="nav-settings {% if p == '/settings' %}active{% endif %}"><span class="ni">{{ icon('settings') }}</span><span>Settings</span></a>
+            </aside>
+            <main class="shell-main" id="pageMain">
+                <script data-nav-marker>window.VoxsBridgeNav&&VoxsBridgeNav.capture(true)</script>
+                {% block content %}{% endblock %}
+                <script data-nav-marker>window.VoxsBridgeNav&&VoxsBridgeNav.capture(false)</script>
+            </main>
+            {% if not reseller and not is_admin %}{% include "dialer_rail.html" %}{% endif %}
+        </div>
+    </div>
+    <!-- Mobile / tablet: bottom tab bar, "More" sheet -->
+    <nav class="mob-tabbar{% if reseller %} mob-tabbar-short{% endif %}{% if is_admin %} mob-tabbar-admin{% endif %}" id="mobTabbar" aria-label="Main menu">
+        {% if reseller %}
+        <a href="/clients" class="mob-tab" data-tab="/clients"><span class="mi" aria-hidden="true">{{ icon('building') }}</span><span>Clients</span></a>
+        {% elif is_admin %}
+        <a href="/dashboard" class="mob-tab" data-tab="/dashboard"><span class="mi" aria-hidden="true">{{ icon('dashboard') }}</span><span>Home</span></a>
+        <a href="/customers" class="mob-tab" data-tab="/customers"><span class="mi" aria-hidden="true">{{ icon('customers') }}</span><span>Customers</span></a>
+        <a href="/companies" class="mob-tab" data-tab="/companies"><span class="mi" aria-hidden="true">{{ icon('building') }}</span><span>Companies</span></a>
+        <a href="/invoices" class="mob-tab" data-tab="/invoices"><span class="mi" aria-hidden="true">{{ icon('invoice') }}</span><span>Invoices</span></a>
+        {% else %}
+        <a href="/dashboard" class="mob-tab" data-tab="/dashboard"><span class="mi" aria-hidden="true">{{ icon('dashboard') }}</span><span>Home</span></a>
+        <a href="/call-logs" class="mob-tab" data-tab="/call-logs"><span class="mi" aria-hidden="true">{{ icon('phone') }}</span><span>Calls</span></a>
+        <button type="button" class="mob-dial" id="mobDial" aria-label="Open dialer" aria-controls="dialRail" aria-expanded="false"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg><span class="mob-dial-label" id="mobDialLabel">Dial</span></button>
+        <a href="/contacts" class="mob-tab" data-tab="/contacts"><span class="mi" aria-hidden="true">{{ icon('contact') }}</span><span>Contacts</span></a>
+        {% endif %}
+        <button type="button" class="mob-tab" id="mobMore" aria-haspopup="dialog" aria-expanded="false"><span class="mi" aria-hidden="true">{{ icon('menu') }}</span><span>More</span></button>
+    </nav>
+    <div class="mob-sheet-backdrop" id="mobMoreBackdrop" hidden></div>
+    <div class="mob-sheet" id="mobMoreSheet" role="dialog" aria-label="All pages" hidden>
+        <div class="mob-sheet-handle" aria-hidden="true"></div>
+        <div class="mob-sheet-grid" id="mobMoreGrid"></div>
+    </div>
+    {% if not reseller and not is_admin %}
+    {% if user.provider == 'twilio' %}
+    <script src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.18.1/dist/twilio.min.js"></script>
+    {% else %}
+    <script src="https://unpkg.com/@telnyx/webrtc@2.22.15/lib/bundle.js"></script>
+    {% endif %}
+    <script src="/static/js/dialer.js"></script>
+    <script src="/static/js/dialer-extras.js"></script>
+    <script src="/static/js/tour.js"></script>
+    <script>
+    /* Header line-status pill mirrors the dialer connection state. */
+    (function(){
+      var src=document.getElementById('rtcStatus'), pill=document.getElementById('vbLineStatus');
+      if(!src||!pill) return;
+      var label=pill.querySelector('span');
+      function sync(){
+        var t=(src.textContent||'').trim();
+        if(!document.querySelector('#dialerConfig[data-nocall="1"]')){
+          var ok=/^(Ready|Incoming)$/i.test(t), wait=/connecting/i.test(t);
+          pill.className='vb-status '+(ok?'is-ok':wait?'is-wait':'is-off');
+          label.textContent=ok?'Line ready':wait?'Connecting…':'Line offline';
+        }
+      }
+      new MutationObserver(sync).observe(src,{childList:true,characterData:true,subtree:true}); sync();
+    })();
+    </script>
+    {% endif %}
+    <script src="/static/js/ui-enhancements.js"></script>
+    <script src="/static/js/session-guard.js"></script>
+    <script src="/static/js/mobile-nav.js"></script>
+    <div id="pageScripts" hidden><script data-nav-marker>window.VoxsBridgeNav&&VoxsBridgeNav.capture(true)</script>{% block scripts %}{% endblock %}<script data-nav-marker>window.VoxsBridgeNav&&VoxsBridgeNav.capture(false)</script></div>
+</body>
+</html>

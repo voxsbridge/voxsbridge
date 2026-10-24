@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ reseller.name }} — Resellers — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="team-back" href="/resellers">← Resellers</a>
+    <h1>{{ reseller.name }}</h1>
+    <p class="muted">{{ reseller.email }} · {{ companies|length }} companies · {{ companies|sum(attribute='users') }} users</p>
+  </div>
+</div>
+{% if msg %}<div class="success-msg">Saved.</div>{% endif %}
+<section class="panel">
+  <h2>Companies of this reseller</h2>
+  <div class="table-scroll"><table class="modern-table">
+    <thead><tr><th>Company</th><th>Owner(s)</th><th>Users</th><th>Online</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for c in companies %}
+    <tr>
+      <td><strong>{{ c.name }}</strong></td><td>{{ c.owners or '—' }}</td><td>{{ c.users }}</td>
+      <td>{% if c.online %}<span class="dn-pill ok">{{ c.online }} online</span>{% else %}—{% endif %}</td>
+      <td class="row-actions">
+        <a class="dn-btn" href="/companies/{{ c.id }}">Open</a>
+        <form method="post" action="/resellers/{{ reseller.id }}/companies" class="inline-form" onsubmit="return confirm('Remove this company from the reseller?')">
+          <input type="hidden" name="account_id" value="{{ c.id }}"><input type="hidden" name="action" value="remove">
+          <button class="dn-btn danger">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="empty-note">No companies assigned yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% if unassigned %}
+  <form method="post" action="/resellers/{{ reseller.id }}/companies" class="add-member-form">
+    <input type="hidden" name="action" value="assign">
+    <label>Assign a direct company to this reseller
+      <select name="account_id" required><option value="">Select company…</option>{% for c in unassigned %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+    </label>
+    <button class="dn-btn primary">Assign</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,889 @@
+{% extends "base.html" %}
+{% block title %}Dialer — VoxsBridge{% endblock %}
+{% block page_title %}Dialer{% endblock %}
+
+{% block content %}
+<style>
+#inCallView[hidden], #padBody[hidden] { display: none !important; }
+#inCallView {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--text-primary);
+    padding-top: 8px;
+}
+#inCallView .incall-state { color: var(--text-muted); font-size: 14px; margin: 0 0 14px; }
+#inCallView .incall-avatar {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: #22c55e;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 10px rgba(34, 197, 94, .16);
+    margin-bottom: 14px;
+}
+#inCallView .incall-number { font-size: 22px; font-weight: 700; letter-spacing: .4px; margin-bottom: 18px; }
+#inCallView .incall-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 88px);
+    gap: 16px 8px;
+    margin-bottom: 16px;
+}
+#inCallView .incall-btn {
+    background: transparent; border: 0; color: var(--text-secondary);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    cursor: pointer; font-size: 12px; padding: 0;
+}
+#inCallView .incall-btn svg {
+    width: 58px; height: 58px; padding: 16px; box-sizing: border-box;
+    border-radius: 50%; border: 1.5px solid var(--border);
+}
+#inCallView .incall-btn.on { color: #fb7185; }
+#inCallView .incall-btn.on svg { border-color: #fb7185; }
+#inCallView .hangup-big {
+    width: 64px; height: 64px; border-radius: 50%; border: 0;
+    background: #ef4458; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px rgba(239, 68, 88, .35);
+    margin-top: 6px;
+}
+#inCallView .dtmf-pad { width: 100%; max-width: 250px; margin-bottom: 10px; }
+#inCallView .dtmf-pad .dial-pad { gap: 8px; margin-bottom: 0; max-width: 250px; }
+#inCallView .dtmf-pad .dial-btn { width: 64px; height: 64px; aspect-ratio: auto; font-size: 18px; }
+#inCallView .dtmf-display { text-align: center; min-height: 18px; letter-spacing: 2px; margin-bottom: 6px; }
+#inCallView.keypad-open .incall-avatar { display: none; }
+#inCallView.keypad-open .incall-grid { display: none; }
+#inCallView.keypad-open .incall-number { margin-bottom: 10px; }
+#composeView[hidden], #callsView[hidden] { display: none !important; }
+#composeView, #callsView { width: 100%; }
+.back-link {
+    background: none; border: 0; color: var(--text-secondary);
+    cursor: pointer; font-size: 14px; padding: 0 0 14px; display: flex; align-items: center; gap: 6px;
+}
+.compose-title { font-size: 20px; font-weight: 700; margin: 0 0 14px; text-align: left; width: 100%; }
+#composeInput { margin-bottom: 16px; }
+.calls-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.calls-head strong { font-size: 18px; }
+.calls-head button { background: none; border: 0; color: var(--text-secondary); font-size: 22px; cursor: pointer; }
+.call-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.call-avatar {
+    width: 40px; height: 40px; border-radius: 50%; background: #3b82f6;
+    display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+}
+.call-meta { flex: 1; min-width: 0; }
+.call-meta strong { display: block; font-size: 15px; }
+.call-meta span { color: var(--text-muted); font-size: 12px; }
+.call-hang {
+    width: 40px; height: 40px; border-radius: 50%; border: 0; background: #3a1d28; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+}
+</style>
+<div class="dialer-layout" id="dialerLayout">
+    <div class="card" id="sideCard" style="display:flex;align-items:center;justify-content:center;">
+        <div style="text-align:center;color:var(--text-muted);width:100%;padding:24px;">
+            <div style="width:64px;height:64px;margin:0 auto 12px;border-radius:50%;background:rgba(37,99,255,.15);color:#5b9bff;display:flex;align-items:center;justify-content:center;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg>
+            </div>
+            <p id="activityTitle">Ready to call</p>
+            <p id="activitySub" style="font-size:13px;margin-top:8px;">Mic permission is needed for the first call</p>
+            <audio id="remoteAudio" autoplay></audio>
+        </div>
+    </div>
+
+    <div class="dialer-panel" id="dialPadView">
+        <div class="your-number">
+            Caller ID: <strong>{{ from_number }}</strong>
+        </div>
+        <div id="dialerConfig" hidden data-from="{{ from_number }}" data-recording="{{ 1 if recording_ok else 0 }}" data-expired="{{ 1 if expired else 0 }}"></div>
+        <div id="rtcStatus" style="font-size:12px;margin-bottom:10px;color:var(--text-muted);">Connecting...</div>
+        <div id="padBody">
+        <input type="text" id="numberInput" class="number-display" placeholder="+1..." >
+        <div class="dial-pad" id="dialPad">
+            <button class="dial-btn" onclick="press('1')">1</button>
+            <button class="dial-btn" onclick="press('2')">2</button>
+            <button class="dial-btn" onclick="press('3')">3</button>
+            <button class="dial-btn" onclick="press('4')">4</button>
+            <button class="dial-btn" onclick="press('5')">5</button>
+            <button class="dial-btn" onclick="press('6')">6</button>
+            <button class="dial-btn" onclick="press('7')">7</button>
+            <button class="dial-btn" onclick="press('8')">8</button>
+            <button class="dial-btn" onclick="press('9')">9</button>
+            <button class="dial-btn" onclick="press('*')">*</button>
+            <button class="dial-btn" type="button" id="zeroBtn"><span class="key-main">0</span><span class="key-sub">+</span></button>
+            <button class="dial-btn" onclick="press('#')">#</button>
+        </div>
+        <div class="call-actions">
+            <button class="call-btn gray" onclick="backspace()" title="Backspace">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 6H8l-5 6 5 6h13a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M18 9l-6 6M12 9l6 6"/></svg>
+            </button>
+            <button class="call-btn green" id="callBtn" onclick="makeCall()" title="Call">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg>
+            </button>
+            <button class="call-btn gray" onclick="hangup()" title="Hangup" style="background:#e11d48;color:#fff;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M12 9c-1.7 0-3.2.25-4.6.72v2.7c0 .4-.24.76-.6.92-.9.4-1.7.95-2.4 1.6-.2.18-.46.28-.74.28-.27 0-.53-.11-.71-.29L.54 12.5a1 1 0 0 1 0-1.41C3.3 8.4 7.45 7 12 7s8.7 1.4 11.46 4.09a1 1 0 0 1 0 1.41l-2.41 2.43c-.18.18-.44.29-.71.29-.28 0-.54-.1-.74-.28-.7-.65-1.5-1.2-2.4-1.6a1 1 0 0 1-.6-.92V9.72A15.2 15.2 0 0 0 12 9z"/></svg>
+            </button>
+        </div>
+        <div id="callStatus" style="margin-top:16px;font-size:13px;color:var(--text-secondary);min-height:20px;"></div>
+        <button type="button" id="backHeld" hidden onclick="resumeHeld()" style="margin-top:12px;">Back to held call</button>
+        </div>
+
+        <div class="incall-screen" id="inCallView" hidden>
+        <p class="incall-state" id="inCallState">Calling...</p>
+        <div class="incall-avatar">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg>
+        </div>
+        <div class="incall-number" id="inCallNumber"></div>
+        <div class="incall-grid">
+            <button type="button" class="incall-btn" id="muteBtn" onclick="toggleMute()">
+                <svg id="muteIcon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                <span id="muteLabel">Mute</span>
+            </button>
+            <button type="button" class="incall-btn" id="keypadBtn" onclick="toggleKeypad()">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="4" height="4" rx="1"/><rect x="10" y="4" width="4" height="4" rx="1"/><rect x="16" y="4" width="4" height="4" rx="1"/><rect x="4" y="10" width="4" height="4" rx="1"/><rect x="10" y="10" width="4" height="4" rx="1"/><rect x="16" y="10" width="4" height="4" rx="1"/><rect x="4" y="16" width="4" height="4" rx="1"/><rect x="10" y="16" width="4" height="4" rx="1"/><rect x="16" y="16" width="4" height="4" rx="1"/></svg>
+                <span>Keypad</span>
+            </button>
+            <button type="button" class="incall-btn" id="holdBtn" onclick="toggleHold()">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+                <span id="holdLabel">Hold</span>
+            </button>
+            <button type="button" class="incall-btn" onclick="addCall()">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M16 11a3 3 0 1 0-3-3"/><path d="M16 21v-2a4 4 0 0 0-3-3.87"/><circle cx="8" cy="8" r="3"/><path d="M2 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M19 8v6M16 11h6"/></svg>
+                <span>Add Call</span>
+            </button>
+            <button type="button" class="incall-btn" onclick="transferCall()">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 7h11l-3-3M18 7l-3 3"/><path d="M17 17H6l3 3M6 17l3-3"/></svg>
+                <span>Transfer</span>
+            </button>
+            <button type="button" class="incall-btn" id="recBtn" onclick="toggleRec()" aria-label="Start or stop recording" title="Record call">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+                <span id="recLabel">REC</span>
+            </button>
+            <button type="button" class="incall-btn" onclick="openCallList()">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
+                <span>Call List</span>
+            </button>
+        </div>
+        <div class="dtmf-pad" id="dtmfPad" hidden>
+            <div class="dtmf-display" id="dtmfDisplay"></div>
+            <button type="button" class="incall-btn" onclick="toggleKeypad()" style="margin-bottom:8px;">Close keypad</button>
+            <div class="dial-pad">
+                <button class="dial-btn" type="button" onclick="press('1')">1</button>
+                <button class="dial-btn" type="button" onclick="press('2')">2</button>
+                <button class="dial-btn" type="button" onclick="press('3')">3</button>
+                <button class="dial-btn" type="button" onclick="press('4')">4</button>
+                <button class="dial-btn" type="button" onclick="press('5')">5</button>
+                <button class="dial-btn" type="button" onclick="press('6')">6</button>
+                <button class="dial-btn" type="button" onclick="press('7')">7</button>
+                <button class="dial-btn" type="button" onclick="press('8')">8</button>
+                <button class="dial-btn" type="button" onclick="press('9')">9</button>
+                <button class="dial-btn" type="button" onclick="press('*')">*</button>
+                <button class="dial-btn" type="button" onclick="press('0')">0</button>
+                <button class="dial-btn" type="button" onclick="press('#')">#</button>
+            </div>
+        </div>
+        <button class="hangup-big" type="button" onclick="hangup()" title="Hang up">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M12 9c-1.7 0-3.2.25-4.6.72v2.7c0 .4-.24.76-.6.92-.9.4-1.7.95-2.4 1.6-.2.18-.46.28-.74.28-.27 0-.53-.11-.71-.29L.54 12.5a1 1 0 0 1 0-1.41C3.3 8.4 7.45 7 12 7s8.7 1.4 11.46 4.09a1 1 0 0 1 0 1.41l-2.41 2.43c-.18.18-.44.29-.71.29-.28 0-.54-.1-.74-.28-.7-.65-1.5-1.2-2.4-1.6a1 1 0 0 1-.6-.92V9.72A15.2 15.2 0 0 0 12 9z"/></svg>
+        </button>
+        </div>
+
+        <div id="composeView" hidden>
+            <button type="button" class="back-link" onclick="backToCall()">&#8592; Back to call</button>
+            <h3 class="compose-title" id="composeTitle">New call</h3>
+            <input id="composeInput" class="number-display" placeholder="Enter a number" readonly>
+            <div class="dial-pad">
+                <button class="dial-btn" type="button" onclick="composePress('1')">1</button>
+                <button class="dial-btn" type="button" onclick="composePress('2')">2</button>
+                <button class="dial-btn" type="button" onclick="composePress('3')">3</button>
+                <button class="dial-btn" type="button" onclick="composePress('4')">4</button>
+                <button class="dial-btn" type="button" onclick="composePress('5')">5</button>
+                <button class="dial-btn" type="button" onclick="composePress('6')">6</button>
+                <button class="dial-btn" type="button" onclick="composePress('7')">7</button>
+                <button class="dial-btn" type="button" onclick="composePress('8')">8</button>
+                <button class="dial-btn" type="button" onclick="composePress('9')">9</button>
+                <button class="dial-btn" type="button" onclick="composePress('*')">*</button>
+                <button class="dial-btn" type="button" onclick="composePress('0')">0</button>
+                <button class="dial-btn" type="button" onclick="composePress('#')">#</button>
+            </div>
+            <div class="call-actions">
+                <button class="call-btn gray" type="button" onclick="composeBackspace()" title="Backspace">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 6H8l-5 6 5 6h13a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M18 9l-6 6M12 9l6 6"/></svg>
+                </button>
+                <button class="call-btn green" type="button" onclick="confirmCompose()" title="Call">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div id="callsView" hidden>
+            <div class="calls-head">
+                <strong>Calls</strong>
+                <button type="button" onclick="closeCalls()" title="Close">&times;</button>
+            </div>
+            <div id="callsList"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/@telnyx/webrtc@2.22.15/lib/bundle.js"></script>
+<script>
+    const input = document.getElementById('numberInput');
+    const statusEl = document.getElementById('callStatus');
+    const rtcStatus = document.getElementById('rtcStatus');
+    const cfg = document.getElementById('dialerConfig');
+    const FROM = cfg.dataset.from || '';
+    const RECORDING_OK = cfg.dataset.recording === '1';
+    const EXPIRED = cfg.dataset.expired === '1';
+    let recorder = null;
+    let recChunks = [];
+    let recStarted = 0;
+    let activeCall = null;
+    let heldCall = null;
+    let onHold = false;
+    let muted = false;
+    let client = null;
+    let talkStart = 0;
+    let timerId = null;
+    let logId = null;
+    let ended = false;
+    let lastState = '';
+    let activeConfirmed = false;
+    let answerHold = null;
+    let rtpPackets = -1;
+    let rtpStall = 0;
+    let silentTicks = 0;
+    let heardAudio = false;
+    let sawAlive = false;
+    let audioCtx = null;
+    let analyser = null;
+    let tappedStream = null;
+    const presetParams = new URLSearchParams(location.search);
+    if (presetParams.get('number')) input.value = presetParams.get('number');
+
+    function clock(sec) {
+        const m = String(Math.floor(sec / 60)).padStart(2, '0');
+        const s = String(sec % 60).padStart(2, '0');
+        return m + ':' + s;
+    }
+    function setStatus(msg, color) {
+        statusEl.textContent = msg;
+        statusEl.style.color = color || 'var(--text-secondary)';
+    }
+    function stopTimer() {
+        if (timerId) clearInterval(timerId);
+        timerId = null;
+    }
+    function startTimer() {
+        if (talkStart) return;
+        talkStart = Date.now();
+        document.getElementById('activitySub').textContent = '00:00';
+        timerId = setInterval(() => {
+            const sec = Math.floor((Date.now() - talkStart) / 1000);
+            document.getElementById('activitySub').textContent = clock(sec);
+        }, 1000);
+    }
+    function saveDuration(status) {
+        if (!logId) return;
+        const sec = talkStart ? Math.max(0, Math.round((Date.now() - talkStart) / 1000)) : 0;
+        const id = logId;
+        logId = null;
+        fetch('/api/call-log/' + id, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: status || 'completed', duration: sec })
+        });
+        return sec;
+    }
+    function markEnded(reason) {
+        if (ended) return;
+        ended = true;
+        const wasRecording = recorder && recorder.state === 'recording';
+        const sec = saveDuration('completed');
+        stopTimer();
+        talkStart = 0;
+        document.getElementById('activityTitle').textContent = reason || 'Call ended';
+        document.getElementById('activitySub').textContent = sec ? clock(sec) : (reason || 'Call ended');
+        setStatus(reason || 'Call ended');
+        if (wasRecording) toggleRec();
+        if (answerHold) { clearInterval(answerHold); answerHold = null; }
+        const audio = document.getElementById('remoteAudio');
+        if (audio) {
+            audio.pause();
+            audio.srcObject = null;
+        }
+        activeCall = null;
+        muted = false;
+        onHold = false;
+        if (heldCall) {
+            resumeHeld();
+            return;
+        }
+        showDialPad();
+    }
+    function endReason(call) {
+        const cause = ((call && call.cause) || '').toUpperCase();
+        const sip = Number((call && call.sipCode) || 0);
+        if (cause.includes('BUSY') || sip === 486) return 'Busy';
+        if (cause.includes('REJECT') || sip === 603) return 'Call declined';
+        if (cause.includes('NO_ANSWER') || sip === 408) return 'No answer';
+        if (sip === 480 || sip === 487) return 'No answer';
+        return 'Call ended';
+    }
+    function callIsDead(call) {
+        if (!call) return false;
+        const st = String(call.state || '').toLowerCase();
+        if (['hangup', 'destroy', 'purge', 'done'].includes(st)) return true;
+        const sip = Number(call.sipCode || 0);
+        if ([486, 603, 480, 487, 404, 408].includes(sip)) return true;
+        const pc = findPc(call);
+        if (pc && (pc.connectionState === 'closed' || pc.connectionState === 'failed')) return true;
+        return false;
+    }
+    function watchRemoteEnd(call) {
+        if (!call || call._endWatch) return;
+        call._endWatch = true;
+        const pc = findPc(call);
+        const end = () => { if (!ended) markEnded(endReason(call)); };
+        if (pc) {
+            pc.addEventListener('connectionstatechange', () => {
+                if (pc.connectionState === 'closed' || pc.connectionState === 'failed') end();
+            });
+            if (pc.getReceivers) {
+                pc.getReceivers().forEach((r) => {
+                    if (r.track) r.track.addEventListener('ended', end);
+                });
+            }
+        }
+        if (call.remoteStream) {
+            call.remoteStream.getTracks().forEach((t) => t.addEventListener('ended', end));
+        }
+    }
+    function armAnswerCheck() {
+        if (answerHold || activeConfirmed || ended) return;
+        const base = rtpPackets;
+        let ticks = 0;
+        answerHold = setInterval(() => {
+            if (ended || !activeCall) {
+                clearInterval(answerHold);
+                answerHold = null;
+                return;
+            }
+            ticks += 1;
+            const grew = rtpPackets > base;
+            if (grew && ticks >= 2) {
+                clearInterval(answerHold);
+                answerHold = null;
+                activeConfirmed = true;
+                lastState = '';
+                showState('active');
+                return;
+            }
+            if (ticks >= 5 && !grew && mediaGrew >= 2) {
+                clearInterval(answerHold);
+                answerHold = null;
+                markEnded('Call ended');
+            }
+        }, 700);
+    }
+    function showState(st) {
+        if (ended) return;
+        st = String(st || '').toLowerCase();
+        if (st === 'active' && !activeConfirmed) {
+            armAnswerCheck();
+            st = 'ringing';
+        }
+        if (!st || st === lastState) return;
+        lastState = st;
+        const labels = {
+            new: 'Calling...', requesting: 'Calling...', trying: 'Calling...',
+            early: 'Ringing', ringing: 'Ringing', answering: 'Connecting',
+            active: 'Active', held: 'On hold',
+            hangup: 'Call ended', destroy: 'Call ended', purge: 'Call ended', done: 'Call ended'
+        };
+        const label = labels[st] || st;
+        if (st === 'hangup' || st === 'destroy' || st === 'purge' || st === 'done') {
+            markEnded(endReason(activeCall));
+            return;
+        }
+        document.getElementById('activityTitle').textContent = label;
+        const who = (activeCall && activeCall.options && activeCall.options.destinationNumber) || input.value || '';
+        document.getElementById('activitySub').textContent = st === 'active' ? '00:00' : who;
+        const inState = document.getElementById('inCallState');
+        if (inState) inState.textContent = label;
+        setStatus(label + (who ? ' · ' + who : ''));
+        if (st === 'active') {
+            if (activeCall && activeCall.remoteStream) {
+                document.getElementById('remoteAudio').srcObject = activeCall.remoteStream;
+            }
+            watchRemoteEnd(activeCall);
+            startTimer();
+        }
+    }
+    function watchCall(call) {
+        if (!call) return;
+        activeCall = call;
+        if (call.on) call.on('telnyx.notification', () => {
+            if (callIsDead(call)) markEnded(endReason(call));
+            else showState(call.state);
+        });
+        showState(call.state);
+    }
+    function RTC() {
+        if (window.TelnyxRTC) return window.TelnyxRTC;
+        if (window.TelnyxWebRTC && window.TelnyxWebRTC.TelnyxRTC) return window.TelnyxWebRTC.TelnyxRTC;
+        return null;
+    }
+    function press(digit) {
+        const inCall = document.getElementById('inCallView');
+        if (inCall && !inCall.hidden) {
+            if (activeCall && activeCall.dtmf) activeCall.dtmf(digit);
+            const box = document.getElementById('dtmfDisplay');
+            if (box) box.textContent += digit;
+            return;
+        }
+        input.value += digit;
+    }
+    (function bindZero() {
+        const btn = document.getElementById('zeroBtn');
+        let timer = null;
+        let long = false;
+        const start = (e) => {
+            e.preventDefault();
+            long = false;
+            timer = setTimeout(() => { long = true; press('+'); }, 600);
+        };
+        const end = () => {
+            if (timer) clearTimeout(timer);
+            timer = null;
+            if (!long) press('0');
+            long = false;
+        };
+        btn.addEventListener('pointerdown', start);
+        btn.addEventListener('pointerup', end);
+        btn.addEventListener('pointerleave', () => { if (timer) { clearTimeout(timer); timer = null; } });
+        btn.addEventListener('pointercancel', () => { if (timer) { clearTimeout(timer); timer = null; } });
+    })();
+    function backspace() { input.value = input.value.slice(0, -1); }
+
+    async function boot() {
+        const Klass = RTC();
+        if (!Klass) {
+            rtcStatus.textContent = 'SDK missing';
+            setStatus('Telnyx SDK failed to load. Check your internet or ad blocker.', 'var(--danger)');
+            return;
+        }
+        try {
+            const res = await fetch('/api/webrtc-token');
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Token failed');
+            client = new Klass({ login_token: data.token });
+            client.on('telnyx.ready', () => {
+                rtcStatus.textContent = 'Ready';
+                rtcStatus.style.color = 'var(--success)';
+                const params = new URLSearchParams(location.search);
+                if (params.get('call') === '1' && input.value && !window._autoDialed) {
+                    window._autoDialed = true;
+                    makeCall();
+                }
+            });
+            client.on('telnyx.error', (e) => {
+                rtcStatus.textContent = 'RTC error';
+                setStatus((e && (e.message || e.error || JSON.stringify(e))) || 'WebRTC error', 'var(--danger)');
+            });
+            client.on('telnyx.socket.message', (msg) => {
+                if (!activeCall || ended || !msg) return;
+                const blob = JSON.stringify(msg).toLowerCase();
+                const endedNow = blob.includes('telnyx_rtc.bye') || blob.includes('normal_clearing') || blob.includes('call_rejected') || blob.includes('user_busy') || blob.includes('originator_cancel') || blob.includes('no_answer') || blob.includes('no_user_response');
+                if (!endedNow) return;
+                const params = msg.params || {};
+                markEnded(endReason({
+                    cause: params.cause || params.sipReason || params.sip_reason || '',
+                    sipCode: params.sipCode || params.sip_code || 0
+                }));
+            });
+            client.on('telnyx.notification', (n) => {
+                if (ended && !heldCall) return;
+                const call = n && (n.call || n);
+                if (!call || !call.state) return;
+                if (heldCall && call.id === heldCall.id) {
+                    if (callIsDead(call)) heldCall = null;
+                    return;
+                }
+                if (!activeCall || activeCall.id === call.id) activeCall = call;
+                if (callIsDead(call)) markEnded(endReason(call));
+                else showState(String(call.state).toLowerCase());
+            });
+            rtcStatus.textContent = 'Connecting...';
+            client.connect();
+        } catch (err) {
+            rtcStatus.textContent = 'Not connected';
+            setStatus(err.message, 'var(--danger)');
+        }
+    }
+
+    async function makeCall() {
+        let number = input.value.trim();
+        if (!number) return setStatus('Enter a number', 'var(--danger)');
+        if (!number.startsWith('+')) number = '+' + number.replace(/\D/g, '');
+        if (!client) return setStatus('WebRTC is not ready', 'var(--danger)');
+        ended = false;
+        lastState = '';
+        activeConfirmed = false;
+        if (answerHold) { clearInterval(answerHold); answerHold = null; }
+        talkStart = 0;
+        stopTimer();
+        muted = false;
+        rtpPackets = -1;
+        rtpStall = 0;
+        mediaGrew = 0;
+        iceStall = 0;
+        sawAlive = false;
+        silentTicks = 0;
+        heardAudio = false;
+        tappedStream = null;
+        setStatus('Calling · ' + number);
+        document.getElementById('activityTitle').textContent = 'Calling...';
+        document.getElementById('activitySub').textContent = number;
+        showInCall(number);
+        activeCall = client.newCall({
+            destinationNumber: number,
+            callerNumber: FROM,
+            audio: true,
+            remoteElement: 'remoteAudio'
+        });
+        watchCall(activeCall);
+        const res = await fetch('/api/call-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to_number: number, status: 'initiated' })
+        });
+        const saved = await res.json();
+        logId = saved.id || (saved.call && saved.call.id) || null;
+    }
+    function hangup() {
+        if (activeCall && activeCall.hangup) activeCall.hangup();
+        markEnded('You hung up');
+    }
+    function transferCall() {
+        if (!activeCall) return setStatus('Transfer works only during a call', 'var(--danger)');
+        const st = String(activeCall.state || '').toLowerCase();
+        if (st && st !== 'active' && st !== 'held' && st !== 'ringing' && st !== 'early') {
+            setStatus('Transfer works only when the call is active', 'var(--danger)');
+            return;
+        }
+        openCompose('transfer');
+    }
+    function openCompose(mode) {
+        composeMode = mode;
+        document.getElementById('composeTitle').textContent = mode === 'transfer' ? 'Transfer call' : 'New call';
+        document.getElementById('composeInput').value = '';
+        hidePanels();
+        document.getElementById('composeView').hidden = false;
+    }
+    function composePress(digit) {
+        document.getElementById('composeInput').value += digit;
+    }
+    function composeBackspace() {
+        const el = document.getElementById('composeInput');
+        el.value = el.value.slice(0, -1);
+    }
+    function backToCall() {
+        document.getElementById('composeView').hidden = true;
+        document.getElementById('callsView').hidden = true;
+        if (composeMode === 'add' && heldCall && !activeCall) resumeHeld();
+        else if (activeCall) showInCall(legNumber(activeCall) || input.value);
+        else showDialPad();
+        composeMode = '';
+    }
+    function confirmCompose() {
+        let number = document.getElementById('composeInput').value.trim();
+        if (!number) return setStatus('Enter a number', 'var(--danger)');
+        if (!number.startsWith('+')) number = '+' + number.replace(/\D/g, '');
+        if (composeMode === 'transfer') {
+            if (activeCall && activeCall.transfer) activeCall.transfer(number);
+            composeMode = '';
+            showInCall(legNumber(activeCall) || input.value);
+            setStatus('Transferring to ' + number);
+            return;
+        }
+        composeMode = '';
+        input.value = number;
+        makeCall();
+    }
+    function addCall() {
+        if (!activeCall) return setStatus('No active call', 'var(--danger)');
+        if (heldCall) return setStatus('A call is already on hold', 'var(--danger)');
+        try { if (activeCall.hold) activeCall.hold(); } catch (err) {}
+        heldCall = activeCall;
+        activeCall = null;
+        onHold = false;
+        openCompose('add');
+    }
+    function resumeHeld() {
+        if (!heldCall) return showDialPad();
+        activeCall = heldCall;
+        heldCall = null;
+        ended = false;
+        activeConfirmed = true;
+        lastState = '';
+        onHold = false;
+        muted = false;
+        try { if (activeCall.unhold) activeCall.unhold(); } catch (err) {}
+        const audio = document.getElementById('remoteAudio');
+        if (audio && activeCall.remoteStream) {
+            audio.srcObject = activeCall.remoteStream;
+            audio.play().catch(() => {});
+        }
+        showInCall(legNumber(activeCall));
+        showState('active');
+        setStatus('Resumed held call');
+    }
+    function closeCalls() {
+        if (activeCall) showInCall(legNumber(activeCall) || input.value);
+        else if (heldCall) resumeHeld();
+        else showDialPad();
+    }
+    function hangupLeg(role) {
+        if (role === 'held' && heldCall) {
+            try { if (heldCall.hangup) heldCall.hangup(); } catch (err) {}
+            heldCall = null;
+            openCallList();
+            return;
+        }
+        hangup();
+    }
+    function openCallList() {
+        const legs = [];
+        if (activeCall) legs.push({ role: 'active', number: legNumber(activeCall) || input.value, status: onHold ? 'On hold' : 'Active' });
+        if (heldCall) legs.push({ role: 'held', number: legNumber(heldCall), status: 'On hold' });
+        const box = document.getElementById('callsList');
+        box.innerHTML = legs.length ? legs.map((leg) =>
+            '<div class="call-row"><div class="call-avatar"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg></div><div class="call-meta"><strong>' +
+            leg.number + '</strong><span>' + leg.status + '</span></div><button type="button" class="call-hang" onclick="hangupLeg(\'' + leg.role + '\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fb7185"><path d="M12 9c-1.7 0-3.2.25-4.6.72v2.7c0 .4-.24.76-.6.92-.9.4-1.7.95-2.4 1.6-.2.18-.46.28-.74.28-.27 0-.53-.11-.71-.29L.54 12.5a1 1 0 0 1 0-1.41C3.3 8.4 7.45 7 12 7s8.7 1.4 11.46 4.09a1 1 0 0 1 0 1.41l-2.41 2.43c-.18.18-.44.29-.71.29-.28 0-.54-.1-.74-.28-.7-.65-1.5-1.2-2.4-1.6a1 1 0 0 1-.6-.92V9.72A15.2 15.2 0 0 0 12 9z"/></svg></button></div>'
+        ).join('') : '<p style="color:var(--text-muted)">No calls in this session</p>';
+        hidePanels();
+        document.getElementById('callsView').hidden = false;
+    }
+    function toggleRec() {
+        if (!RECORDING_OK) {
+            setStatus('Call recording is $25. Ask your admin to upgrade this account.', 'var(--danger)');
+            return;
+        }
+        if (!recorder || recorder.state === 'inactive') {
+            if (!activeCall || !activeCall.remoteStream) {
+                setStatus('Start a call before recording', 'var(--danger)');
+                return;
+            }
+            recChunks = [];
+            recStarted = Date.now();
+            try { recorder = new MediaRecorder(activeCall.remoteStream); }
+            catch (err) { setStatus('Recording unavailable: ' + err.message, 'var(--danger)'); return; }
+            recorder.ondataavailable = (e) => { if (e.data.size) recChunks.push(e.data); };
+            recorder.onstop = () => {
+                const blob = new Blob(recChunks, { type: 'audio/webm' });
+                const seconds = Math.max(1, Math.round((Date.now() - recStarted) / 1000));
+                const form = new FormData();
+                form.append('file', blob, 'call.webm');
+                form.append('to_number', input.value || '');
+                form.append('duration', String(seconds));
+                form.append('kind', 'call');
+                fetch('/api/recordings', { method: 'POST', body: form })
+                    .then(r => { if (!r.ok) throw new Error('Upload failed (' + r.status + ')'); setStatus('Recording uploaded. Open Recordings to play it.'); })
+                    .catch(() => setStatus('Could not save recording', 'var(--danger)'));
+            };
+            recorder.start();
+            const recBtn = document.getElementById('recBtn');
+            const recLabel = document.getElementById('recLabel');
+            if (recBtn) recBtn.classList.add('recording');
+            if (recLabel) recLabel.textContent = 'STOP';
+            setStatus('Recording...');
+        } else {
+            recorder.stop();
+            const recBtn = document.getElementById('recBtn');
+            const recLabel = document.getElementById('recLabel');
+            if (recBtn) recBtn.classList.remove('recording');
+            if (recLabel) recLabel.textContent = 'REC';
+            setStatus('Recording saved');
+        }
+    }
+    function setMic(call, off) {
+        if (!call) return;
+        const stream = call.options && call.options.localStream;
+        if (stream && stream.getAudioTracks) {
+            stream.getAudioTracks().forEach((track) => { track.enabled = !off; });
+        }
+        if (off) {
+            if (call.muteAudio) call.muteAudio();
+        } else if (call.unmuteAudio) {
+            call.unmuteAudio();
+        }
+    }
+    function toggleMute() {
+        if (!activeCall) return;
+        muted = !muted;
+        setMic(activeCall, muted);
+        const icon = document.getElementById('muteIcon');
+        document.getElementById('muteLabel').textContent = muted ? 'Muted' : 'Mute';
+        document.getElementById('muteBtn').classList.toggle('on', muted);
+        setStatus(muted ? 'Muted' : 'Unmuted');
+    }
+    let composeMode = '';
+    function legNumber(call) {
+        return (call && call.options && call.options.destinationNumber) || '';
+    }
+    function hidePanels() {
+        document.getElementById('padBody').hidden = true;
+        document.getElementById('inCallView').hidden = true;
+        document.getElementById('composeView').hidden = true;
+        document.getElementById('callsView').hidden = true;
+    }
+    function showInCall(number) {
+        hidePanels();
+        const view = document.getElementById('inCallView');
+        view.hidden = false;
+        view.classList.remove('keypad-open');
+        document.getElementById('inCallNumber').textContent = number || input.value || '';
+        document.getElementById('dtmfDisplay').textContent = '';
+        document.getElementById('dtmfPad').hidden = true;
+        document.getElementById('keypadBtn').classList.remove('on');
+    }
+    function showDialPad() {
+        hidePanels();
+        document.getElementById('padBody').hidden = false;
+        document.getElementById('inCallView').classList.remove('keypad-open');
+        document.getElementById('dtmfPad').hidden = true;
+        const holdBtn = document.getElementById('holdBtn');
+        if (holdBtn) holdBtn.classList.remove('on');
+        const holdLabel = document.getElementById('holdLabel');
+        if (holdLabel) holdLabel.textContent = 'Hold';
+        const muteBtn = document.getElementById('muteBtn');
+        if (muteBtn) muteBtn.classList.remove('on');
+        const muteLabel = document.getElementById('muteLabel');
+        if (muteLabel) muteLabel.textContent = 'Mute';
+        const back = document.getElementById('backHeld');
+        if (back) back.hidden = !heldCall;
+        onHold = false;
+        muted = false;
+    }
+    function toggleKeypad() {
+        const pad = document.getElementById('dtmfPad');
+        const view = document.getElementById('inCallView');
+        pad.hidden = !pad.hidden;
+        view.classList.toggle('keypad-open', !pad.hidden);
+        document.getElementById('keypadBtn').classList.toggle('on', !pad.hidden);
+    }
+    function toggleHold() {
+        if (!activeCall) return;
+        onHold = !onHold;
+        try {
+            if (onHold && activeCall.hold) activeCall.hold();
+            if (!onHold && activeCall.unhold) activeCall.unhold();
+        } catch (err) {}
+        document.getElementById('holdBtn').classList.toggle('on', onHold);
+        document.getElementById('holdLabel').textContent = onHold ? 'Resume' : 'Hold';
+        if (onHold) showState('held');
+        else { lastState = ''; activeConfirmed = true; showState('active'); }
+        setStatus(onHold ? 'On hold' : 'Call resumed');
+    }
+    function findPc(call) {
+        if (!call) return null;
+        if (call.peerConnection instanceof RTCPeerConnection) return call.peerConnection;
+        const peer = call.peer;
+        if (peer) {
+            if (peer.instance instanceof RTCPeerConnection) return peer.instance;
+            if (peer.pc instanceof RTCPeerConnection) return peer.pc;
+        }
+        return null;
+    }
+    let mediaGrew = 0;
+    let iceStall = 0;
+    function sampleLevel(call) {
+        const el = document.getElementById('remoteAudio');
+        const stream = (el && el.srcObject) || call.remoteStream;
+        if (!stream || !stream.getAudioTracks || !stream.getAudioTracks().length) return;
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        if (tappedStream !== stream) {
+            if (audioCtx) audioCtx.close().catch(() => {});
+            audioCtx = new Ctx();
+            const src = audioCtx.createMediaStreamSource(stream);
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 512;
+            src.connect(analyser);
+            tappedStream = stream;
+            heardAudio = false;
+            silentTicks = 0;
+        }
+        if (audioCtx.state !== 'running') {
+            audioCtx.resume().catch(() => {});
+            return;
+        }
+        const buf = new Uint8Array(analyser.fftSize);
+        analyser.getByteTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) {
+            const v = (buf[i] - 128) / 128;
+            sum += v * v;
+        }
+        const rms = Math.sqrt(sum / buf.length);
+        if (rms > 0.02) {
+            heardAudio = true;
+            silentTicks = 0;
+        } else if (heardAudio) {
+            silentTicks += 1;
+        }
+    }
+    async function mediaStopped(call) {
+        const pc = findPc(call);
+        let ice = 'no-pc';
+        if (pc && pc.getStats) {
+            ice = pc.iceConnectionState || pc.connectionState || 'pc';
+            if (['disconnected', 'failed', 'closed'].includes(pc.iceConnectionState) || ['failed', 'closed'].includes(pc.connectionState)) {
+                iceStall += 1;
+                if (iceStall >= 3 && !ended) markEnded('Call ended');
+            } else {
+                iceStall = 0;
+            }
+            try {
+                const stats = await pc.getStats();
+                let bytes = 0;
+                stats.forEach((row) => {
+                    if (row.type === 'inbound-rtp' && (row.kind === 'audio' || row.mediaType === 'audio')) bytes += row.bytesReceived || 0;
+                });
+                if (bytes > rtpPackets) {
+                    mediaGrew += 1;
+                    rtpPackets = bytes;
+                    rtpStall = 0;
+                } else if (mediaGrew >= 2 && bytes > 0 && bytes === rtpPackets) {
+                    rtpStall += 1;
+                    if (rtpStall >= 3 && !ended) markEnded('Call ended');
+                }
+            } catch (err) {}
+        }
+        sampleLevel(call);
+        const stream = call.remoteStream || (document.getElementById('remoteAudio') && document.getElementById('remoteAudio').srcObject);
+        if (stream && stream.getAudioTracks && stream.getAudioTracks().some((t) => t.readyState === 'ended') && !ended) {
+            markEnded('Call ended');
+        }
+        if (!ended) rtcStatus.textContent = document.getElementById('activityTitle').textContent;
+    }
+    setInterval(() => {
+        if (!activeCall || ended) return;
+        if (callIsDead(activeCall)) {
+            markEnded(endReason(activeCall));
+            return;
+        }
+        watchRemoteEnd(activeCall);
+        mediaStopped(activeCall);
+        if (activeCall && activeCall.state) showState(String(activeCall.state).toLowerCase());
+    }, 700);
+    document.addEventListener('keydown', (e) => {
+        if (document.activeElement === input && e.key === 'Enter') makeCall();
+    });
+    if (!EXPIRED) boot();
+    else {
+        rtcStatus.textContent = 'Subscription expired';
+        setStatus('Subscription expired. Ask your admin to renew it.', 'var(--danger)');
+    }
+</script>
+{% endblock %}

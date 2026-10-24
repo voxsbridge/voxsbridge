@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Call Scripts — VoxsBridge{% endblock %}
+{% block content %}
+<div class="script-app">
+  <aside class="script-list-panel">
+    <div class="script-list-head"><h2>Scripts</h2><a class="script-new" href="/scripts">+ New Script</a></div>
+    <input type="search" id="scriptSearch" class="script-search" placeholder="Search scripts..." aria-label="Search scripts">
+    <div class="script-items">
+      {% for item in saved_scripts %}
+      <a class="script-item {% if current_script and current_script.id == item.id %}selected{% endif %}" href="/scripts?edit={{ item.id }}"><strong>{{ item.title }}</strong><small>{{ item.category or 'General' }}{% if item.default %} · ★ Default{% endif %}</small></a>
+      {% else %}<div class="script-empty">No scripts yet.<br>Create your first script.</div>{% endfor %}
+    </div>
+  </aside>
+  <section class="script-editor-panel">
+    <a href="/scripts" class="script-back">← Back to scripts</a>
+    <form action="/scripts/save" method="post" id="scriptForm">
+      <input type="hidden" name="script_id" value="{{ current_script.id if current_script else '' }}">
+      <div class="script-title-row"><input name="title" required maxlength="150" placeholder="Script title" value="{{ current_script.title if current_script else '' }}"><input name="category" maxlength="80" placeholder="Category" value="{{ current_script.category if current_script else '' }}"></div>
+      <label class="script-default"><input type="checkbox" name="is_default" value="yes" {% if current_script and current_script.default %}checked{% endif %}> ★ Set as Default</label>
+      <div class="script-toolbar"><button type="button" data-command="bold" title="Bold"><b>B</b></button><button type="button" data-command="italic" title="Italic"><i>I</i></button><button type="button" data-command="underline" title="Underline"><u>U</u></button><button type="button" data-command="insertUnorderedList" title="Bullets">☷</button><button type="button" data-command="insertOrderedList" title="Numbered list">≡</button><button type="button" id="scriptLink" title="Insert link">🔗</button></div>
+      <div id="scriptEditor" class="script-editable" contenteditable="true" role="textbox" aria-label="Script content" data-placeholder="Start writing your script here..."></div>
+      <textarea name="content" id="scriptContent" hidden></textarea>
+      <div class="script-actions"><span id="scriptWords">0 words</span><button type="submit" class="script-save">▣ Save Script</button></div>
+    </form>
+    {% if current_script %}<form action="/scripts/delete" method="post" onsubmit="return confirm('Delete this script?')"><input type="hidden" name="script_id" value="{{ current_script.id }}"><button class="script-delete" type="submit">Delete Script</button></form>{% endif %}
+  </section>
+</div>
+<script id="savedScriptContent" type="application/json">{{ (current_script.content if current_script else '')|tojson }}</script>
+<script>
+(()=>{const editor=document.getElementById('scriptEditor'),hidden=document.getElementById('scriptContent');editor.innerHTML=JSON.parse(document.getElementById('savedScriptContent').textContent);const count=()=>{document.getElementById('scriptWords').textContent=(editor.innerText.trim().match(/\S+/g)||[]).length+' words'};editor.addEventListener('input',count);count();document.querySelectorAll('[data-command]').forEach(btn=>btn.addEventListener('click',()=>{editor.focus();document.execCommand(btn.dataset.command,false,null);count()}));document.getElementById('scriptLink').addEventListener('click',()=>{const url=prompt('Enter https:// URL');if(url&&/^https:\/\//i.test(url)){editor.focus();document.execCommand('createLink',false,url)}});document.getElementById('scriptForm').addEventListener('submit',()=>{const clone=editor.cloneNode(true);clone.querySelectorAll('script,iframe,object,embed,style,form').forEach(el=>el.remove());clone.querySelectorAll('*').forEach(el=>{[...el.attributes].forEach(attr=>{if(attr.name.startsWith('on')||attr.name==='style'||(attr.name==='href'&&!/^https:\/\//i.test(attr.value)))el.removeAttribute(attr.name)})});hidden.value=clone.innerHTML});document.getElementById('scriptSearch').addEventListener('input',e=>document.querySelectorAll('.script-item').forEach(el=>el.hidden=!el.textContent.toLowerCase().includes(e.target.value.toLowerCase())));})();
+</script>
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Team — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    {% if back_url %}<a class="team-back" href="{{ back_url }}">← Back</a>{% endif %}
+    <h1>{{ account.name }}</h1>
+    <p class="muted">Live team status · updates every 5 seconds <span class="live-dot" aria-hidden="true"></span></p>
+  </div>
+</div>
+
+<div class="team-stats" id="teamStats">
+  <div class="team-stat"><small>Team members</small><strong data-k="total">{{ summary.total }}</strong></div>
+  <div class="team-stat ok"><small>Online now</small><strong data-k="online">{{ summary.online }}</strong></div>
+  <div class="team-stat call"><small>On a call</small><strong data-k="on_call">{{ summary.on_call }}</strong></div>
+  <div class="team-stat"><small>Calls today</small><strong data-k="calls_today">{{ summary.calls_today }}</strong></div>
+  <div class="team-stat"><small>Talk time today</small><strong data-k="talk_today">{{ (summary.talk_today // 60) }}m</strong></div>
+</div>
+
+<div class="team-filter chips" role="tablist" aria-label="Filter team">
+  <button type="button" class="on" data-f="all">All</button>
+  <button type="button" data-f="online">Online</button>
+  <button type="button" data-f="on_call">On call</button>
+  <button type="button" data-f="offline">Offline</button>
+</div>
+
+<div class="team-grid" id="teamGrid" data-account="{{ account.id }}" data-can-open="{{ 1 if can_open else 0 }}">
+  {% for m in members %}
+  <article class="member-card st-{{ m.status }}" data-id="{{ m.id }}" data-status="{{ m.status }}">
+    <div class="member-top">
+      <span class="member-avatar">{{ (m.name or '?')[0]|upper }}<i class="status-dot" aria-hidden="true"></i></span>
+      <div class="member-id"><strong>{{ m.name }}</strong><small>{{ m.phone_number or 'No calling number' }}{% if m.account_role == 'owner' %} · Owner{% endif %}</small></div>
+      <span class="status-pill" data-role="status">{{ {'online':'Online','on_call':'On call','ringing':'Ringing','dialing':'Dialing','offline':'Offline'}[m.status] }}</span>
+    </div>
+    <div class="member-live" data-role="live">{% if m.status in ['on_call','ringing','dialing'] %}{{ '↙' if m.call_direction == 'incoming' else '↗' }} {{ m.call_number or 'Unknown number' }}{% if m.status == 'on_call' %} · <span data-secs="{{ m.call_seconds }}">{{ '%02d:%02d'|format(m.call_seconds // 60, m.call_seconds % 60) }}</span>{% endif %}{% else %}{{ 'Waiting for calls' if m.status == 'online' else 'Not signed in' }}{% endif %}</div>
+    <div class="member-nums">
+      <div><strong data-role="calls">{{ m.calls_today }}</strong><small>Calls today</small></div>
+      <div><strong data-role="answered">{{ m.answered_today }}</strong><small>Answered</small></div>
+      <div><strong data-role="talk">{{ m.talk_today // 60 }}m</strong><small>Talk time</small></div>
+      <div><strong data-role="last">{{ m.last_call or '—' }}</strong><small>Last call</small></div>
+    </div>
+    {% if can_open %}<a class="dn-btn member-open" href="/team/member/{{ m.id }}">Call logs &amp; recordings →</a>{% endif %}
+  </article>
+  {% else %}
+  <p class="empty-note">No team members yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const grid = document.getElementById('teamGrid');
+  if (!grid) return;
+  const LABEL = { online: 'Online', on_call: 'On call', ringing: 'Ringing', dialing: 'Dialing', offline: 'Offline' };
+  const account = grid.dataset.account;
+  const canOpen = grid.dataset.canOpen === '1';
+  let filter = 'all';
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const mmss = (s) => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  function liveText(m) {
+    if (['on_call', 'ringing', 'dialing'].includes(m.status)) {
+      const arrow = m.call_direction === 'incoming' ? '↙' : '↗';
+      return arrow + ' ' + esc(m.call_number || 'Unknown number') + (m.status === 'on_call' ? ' · <span data-secs="' + m.call_seconds + '">' + mmss(m.call_seconds) + '</span>' : '');
+    }
+    return m.status === 'online' ? 'Waiting for calls' : 'Not signed in';
+  }
+  function card(m) {
+    return '<article class="member-card st-' + m.status + '" data-id="' + esc(m.id) + '" data-status="' + m.status + '">' +
+      '<div class="member-top"><span class="member-avatar">' + esc((m.name || '?')[0].toUpperCase()) + '<i class="status-dot" aria-hidden="true"></i></span>' +
+      '<div class="member-id"><strong>' + esc(m.name) + '</strong><small>' + esc(m.phone_number || 'No calling number') + (m.account_role === 'owner' ? ' · Owner' : '') + '</small></div>' +
+      '<span class="status-pill">' + LABEL[m.status] + '</span></div>' +
+      '<div class="member-live">' + liveText(m) + '</div>' +
+      '<div class="member-nums"><div><strong>' + m.calls_today + '</strong><small>Calls today</small></div>' +
+      '<div><strong>' + m.answered_today + '</strong><small>Answered</small></div>' +
+      '<div><strong>' + Math.floor(m.talk_today / 60) + 'm</strong><small>Talk time</small></div>' +
+      '<div><strong>' + esc(m.last_call || '—') + '</strong><small>Last call</small></div></div>' +
+      (canOpen ? '<a class="dn-btn member-open" href="/team/member/' + esc(m.id) + '">Call logs &amp; recordings →</a>' : '') +
+      '</article>';
+  }
+  function applyFilter() {
+    grid.querySelectorAll('.member-card').forEach((el) => {
+      const st = el.dataset.status;
+      el.hidden = !(filter === 'all' || (filter === 'online' && st !== 'offline') ||
+        (filter === 'on_call' && ['on_call', 'ringing', 'dialing'].includes(st)) || filter === st);
+    });
+  }
+  document.querySelectorAll('.team-filter button').forEach((b) => b.addEventListener('click', () => {
+    filter = b.dataset.f;
+    document.querySelectorAll('.team-filter button').forEach((x) => x.classList.toggle('on', x === b));
+    applyFilter();
+  }));
+  async function refresh() {
+    try {
+      const res = await fetch('/api/team' + (account ? '?account=' + encodeURIComponent(account) : ''), { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      grid.innerHTML = data.members.length ? data.members.map(card).join('') : '<p class="empty-note">No team members yet.</p>';
+      const s = data.summary;
+      const set = (k, v) => { const el = document.querySelector('#teamStats [data-k="' + k + '"]'); if (el) el.textContent = v; };
+      set('total', s.total); set('online', s.online); set('on_call', s.on_call); set('calls_today', s.calls_today);
+      set('talk_today', Math.floor(s.talk_today / 60) + 'm');
+      applyFilter();
+    } catch (e) {}
+  }
+  // tick call timers every second, refresh from the server every 5 seconds
+  setInterval(() => document.querySelectorAll('#teamGrid [data-secs]').forEach((el) => {
+    const n = Number(el.dataset.secs) + 1; el.dataset.secs = n; el.textContent = mmss(n);
+  }), 1000);
+  setInterval(refresh, 5000);
+})();
+</script>
+{% endblock %}

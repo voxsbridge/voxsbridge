@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}My Clients — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>My Clients</h1><p class="muted">Your companies and their teams. Open a company to see who is online and on a call.</p></div>
+</div>
+<div class="team-stats">
+  <div class="team-stat"><small>Companies</small><strong>{{ companies|length }}</strong></div>
+  <div class="team-stat"><small>Users</small><strong>{{ totals.users }}</strong></div>
+  <div class="team-stat ok"><small>Online now</small><strong>{{ totals.online }}</strong></div>
+  <div class="team-stat"><small>Calls today</small><strong>{{ totals.calls_today }}</strong></div>
+  <div class="team-stat"><small>Calls this month</small><strong>{{ totals.calls_month }}</strong></div>
+</div>
+<div class="client-grid">
+  {% for c in companies %}
+  <a class="client-card" href="/team?account={{ c.id }}">
+    <div class="client-top"><span class="member-avatar">{{ (c.name or '?')[0]|upper }}</span><div><strong>{{ c.name }}</strong><small>{{ c.owners or 'No owner yet' }}</small></div>
+      {% if c.online %}<span class="status-pill st-online">{{ c.online }} online</span>{% else %}<span class="status-pill st-offline">Offline</span>{% endif %}</div>
+    <div class="member-nums">
+      <div><strong>{{ c.users }}</strong><small>Users</small></div>
+      <div><strong>{{ c.calls_today }}</strong><small>Calls today</small></div>
+      <div><strong>{{ c.calls_week }}</strong><small>This week</small></div>
+      <div><strong>{{ c.calls_month }}</strong><small>This month</small></div>
+    </div>
+    <span class="client-open">View team →</span>
+  </a>
+  {% else %}
+  <p class="empty-note">No companies are assigned to you yet. Please contact VoxsBridge.</p>
+  {% endfor %}
+</div>
+{% endblock %}

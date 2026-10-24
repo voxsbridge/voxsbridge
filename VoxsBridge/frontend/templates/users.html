@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Users — VoxsBridge{% endblock %}
+{% block page_title %}Users{% endblock %}
+
+{% block content %}
+<section class="users-hero"><div><span class="eyebrow">ACCOUNT MANAGEMENT</span><h1>Create New User</h1><p>Set up calling access, subscription and payment in one place.</p></div><span class="hero-symbol">✦</span></section>
+{% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
+{% if deleted %}<div class="success-msg">User disabled, sessions revoked and Caller ID released. Payment history retained.</div>{% endif %}
+{% if created %}<div class="success-msg">User created successfully. Share login credentials securely.</div>{% endif %}
+<form method="POST" action="/users" class="user-form" id="createUserForm">
+ <div class="user-form-grid">
+ <section class="user-panel"><div class="panel-title"><span class="panel-icon">♙</span><div><h2>Account Details</h2><p>Personal details and calling access</p></div></div>
+ <div class="field"><label>Full Name</label><input name="name" placeholder="e.g. Ahmed Khan" required autocomplete="name"></div>
+ <div class="field"><label>Email Address</label><input name="email" type="email" placeholder="agent@example.com" required autocomplete="off"></div>
+ <div class="field"><label>Password</label><input name="password" type="password" placeholder="Create a strong password" required minlength="12" autocomplete="new-password"></div>
+ <div class="field"><label for="user-type">User type</label><select id="user-type" name="user_type"><option value="customer" selected>Customer (company user)</option><option value="reseller">Reseller (views own clients only)</option></select></div>
+ <div class="customer-only">
+ <div class="field"><label for="company-mode">Company</label><select id="company-mode" name="company_mode"><option value="new" selected>New company</option>{% if companies %}<option value="existing">Add to existing company</option>{% endif %}</select></div>
+ <div class="field company-new"><label for="company-name">Company name</label><input id="company-name" name="company_name" maxlength="200" placeholder="Leave empty to use the user's name"><small>This user becomes the company owner.</small></div>
+ <div class="field company-new"><label for="company-reseller">Reseller</label><select id="company-reseller" name="reseller_id"><option value="">Direct customer (no reseller)</option>{% for r in resellers %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></div>
+ <div class="field company-existing" hidden><label for="company-select">Existing company</label><select id="company-select" name="account_id"><option value="">Select company…</option>{% for c in companies %}<option value="{{ c.id }}">{{ c.name }} ({{ c.users }} users)</option>{% endfor %}</select></div>
+ <div class="field company-existing" hidden><label for="account-role">Role in company</label><select id="account-role" name="account_role"><option value="agent" selected>Agent (makes calls)</option><option value="owner">Owner (sees the whole team)</option></select><small>Owners see live status, call logs and recordings of every team member.</small></div>
+ </div>
+ <div class="field calling-only"><label for="provider-select">Calling Provider</label><select id="provider-select" name="provider" required><option value="telnyx" selected>Telnyx (main)</option><option value="twilio">Twilio (backup)</option></select><small>The Caller ID list below shows numbers from the selected provider.</small></div>
+ <div class="field"><label for="caller-id" id="caller-id-label">Caller ID · Telnyx Numbers</label><select id="caller-id" name="phone_number"><option value="">Loading Telnyx numbers...</option></select><input type="hidden" id="confirm-shared-number" name="confirm_shared_number" value="no"><small id="caller-id-message" aria-live="polite">Numbers assigned to other users require transfer confirmation.</small><small>Owners can be created without a number (they only watch the team). Agents need a number.</small></div>
+ </section>
+ <section class="user-panel"><div class="panel-title"><span class="panel-icon">▤</span><div><h2>Subscription & Payment</h2><p>Manage plan and PKR payments</p></div></div>
+ <div class="field"><label style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="is_demo" value="true" id="demoTrial" style="width:auto"> 1-hour demo / free trial</label><small>Trial starts on first successful login. Calling access expires after 60 minutes.</small></div>
+ <div class="field"><label>Plan Name</label><input name="plan_name" value="1 USER ACCOUNT-UK" required></div>
+ <div class="two-fields"><div class="field"><label>Start Date</label><input name="plan_start" type="date" required></div><div class="field"><label>Renewal Date</label><input name="plan_renewal" type="date" required></div></div>
+ <div class="field"><label>Amount Received (PKR)</label><div class="money-field"><span>Rs.</span><input name="amount_paid" type="number" min="0" step="1" value="0" required></div></div>
+ <div class="field"><label>Payment Status</label><select name="payment_status"><option value="paid">Paid</option><option value="partial">Partially Paid</option><option value="unpaid">Unpaid</option></select></div>
+ </section></div>
+ <div class="form-footer"><span>Only administrators can see payment details.</span><button class="btn btn-primary create-user-button" type="submit">＋ Create User</button></div>
+</form>
+<script>
+(function () {
+  const select = document.getElementById('caller-id');
+  const form = select.closest('form');
+  const confirmation = document.getElementById('confirm-shared-number');
+  const message = document.getElementById('caller-id-message');
+  const providerSelect = document.getElementById('provider-select');
+  const label = document.getElementById('caller-id-label');
+  let callerIds = [];
+  let confirmedNumber = '';
+
+  async function loadCallerIds() {
+    const provider = providerSelect.value;
+    const providerName = provider === 'twilio' ? 'Twilio' : 'Telnyx';
+    label.textContent = 'Caller ID · ' + providerName + ' Numbers';
+    select.replaceChildren(new Option('Loading ' + providerName + ' numbers...', ''));
+    message.textContent = 'Numbers assigned to other users require transfer confirmation.';
+    callerIds = [];
+    try {
+      const response = await fetch('/api/admin/caller-ids?provider=' + encodeURIComponent(provider), {credentials: 'same-origin', cache: 'no-store'});
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.detail || ('Could not load ' + providerName + ' numbers (' + response.status + ')'));
+      }
+      const data = await response.json();
+      callerIds = data.numbers || [];
+      select.replaceChildren(new Option('Select Caller ID', ''));
+      callerIds.forEach(item => {
+        const names = item.assigned_to.map(person => person.last_name).join(', ');
+        const label = item.number + (names ? ' — Assigned (' + names + ')' : ' — Available');
+        select.add(new Option(label, item.number));
+      });
+      if (!callerIds.length) message.textContent = 'No phone numbers found in your ' + providerName + ' account.';
+    } catch (error) {
+      select.replaceChildren(new Option('Unable to load numbers', ''));
+      message.textContent = error.message + '. Check the ' + providerName + ' keys on Render and try again.';
+    }
+  }
+  providerSelect.addEventListener('change', () => { confirmedNumber = ''; confirmation.value = 'no'; loadCallerIds(); });
+  select.addEventListener('change', () => {
+    confirmedNumber = '';
+    confirmation.value = 'no';
+    const selected = callerIds.find(item => item.number === select.value);
+    message.textContent = selected && selected.assigned_to.length
+      ? 'Assigned to: ' + selected.assigned_to.map(u => u.last_name).join(', ') + '. Transfer confirmation required.'
+      : '';
+  });
+  const typeSel = document.getElementById('user-type');
+  const modeSel = document.getElementById('company-mode');
+  const roleSel = document.getElementById('account-role');
+  function syncForm() {
+    const reseller = typeSel.value === 'reseller';
+    const existing = modeSel.value === 'existing';
+    document.querySelectorAll('.customer-only').forEach(el => el.hidden = reseller);
+    document.querySelectorAll('.calling-only, #caller-id').forEach(el => { const f = el.closest('.field'); if (f) f.hidden = reseller; });
+    document.querySelectorAll('.company-new').forEach(el => el.hidden = existing);
+    document.querySelectorAll('.company-existing').forEach(el => el.hidden = !existing);
+    document.getElementById('company-select').required = !reseller && existing;
+  }
+  [typeSel, modeSel].forEach(el => el.addEventListener('change', syncForm));
+  if (location.hash === '#reseller') { typeSel.value = 'reseller'; }
+  syncForm();
+  form.addEventListener('submit', event => {
+    const reseller = typeSel.value === 'reseller';
+    const needsNumber = !reseller && modeSel.value === 'existing' && roleSel.value === 'agent';
+    if (reseller || !select.value) {
+      if (needsNumber) { event.preventDefault(); message.textContent = 'Agents need a Caller ID. Select a number.'; select.focus(); }
+      return;
+    }
+    const selected = callerIds.find(item => item.number === select.value);
+    if (!selected) { event.preventDefault(); return; }
+    if (selected.assigned_to.length && confirmedNumber !== selected.number) {
+      event.preventDefault();
+      const names = selected.assigned_to.map(u => u.last_name).join(', ');
+      if (window.confirm('Caller ID ' + selected.number + ' is already assigned to ' + names + '. Transfer this number to the new user? The previous user will lose this Caller ID.')) {
+        confirmedNumber = selected.number;
+        confirmation.value = 'yes';
+        form.requestSubmit();
+      }
+    }
+  });
+  const demo = document.getElementById('demoTrial');
+  demo.addEventListener('change', () => {
+    const amount = form.querySelector('[name="amount_paid"]');
+    const payment = form.querySelector('[name="payment_status"]');
+    if (demo.checked) { amount.value = '0'; payment.value = 'unpaid'; }
+    amount.disabled = demo.checked;
+    payment.disabled = demo.checked;
+  });
+  loadCallerIds();
+})();
+</script>
+<section class="premium-users">
+ <div class="premium-users-head"><div><h2>User Management</h2><p>Manage accounts, subscriptions and calling access.</p></div><div class="premium-count">{{ users|length }} users</div></div>
+ <div class="premium-search"><span>⌕</span><input id="userSearch" type="search" placeholder="Search name, email or number" aria-label="Search users"></div>
+ <div class="premium-scroll"><table class="premium-table"><thead><tr><th>USER</th><th>CALLER ID</th><th>PLAN</th><th>STATUS</th><th>RENEWAL</th><th>ACTION</th></tr></thead><tbody>
+ {% set cmap = {} %}{% for c in companies %}{% set _ = cmap.update({c.id|string: c.name}) %}{% endfor %}
+ {% for u in users %}<tr class="premium-user-row" data-search="{{ (u.name ~ ' ' ~ u.email ~ ' ' ~ (u.phone_number or ''))|lower|e }}">
+ <td><strong>{{ u.name }}</strong><small>{{ u.email }}</small>{% if u.user_type == 'reseller' %}<small><span class="dn-pill warn">Reseller</span></small>{% elif u.account_id and cmap.get(u.account_id) %}<small><a href="/companies/{{ u.account_id }}">{{ cmap.get(u.account_id) }}</a> · {{ 'Owner' if u.account_role == 'owner' else 'Agent' }}</small>{% endif %}</td><td class="number-cell">{{ u.phone_number or 'Unassigned' }}<small><span class="dn-pill {{ u.provider or 'telnyx' }}">{{ (u.provider or 'telnyx')|capitalize }}</span></small></td><td><span class="plan-pill">{{ u.plan_name or '—' }}</span></td>
+ <td><span class="status-pill {{ 'status-demo' if u.is_demo else 'status-active' }}">{{ 'Demo' if u.is_demo else 'Active' }}</span></td><td>{{ u.plan_renewal or '—' }}</td>
+ <td><button type="button" class="premium-edit" data-user='{{ {"name":u.name,"email":u.email,"number":u.phone_number,"provider":u.provider or "telnyx","plan":u.plan_name,"renewal":u.plan_renewal,"recording":u.recording_premium,"demo":u.is_demo,"role":u.role}|tojson|forceescape }}'>Edit ✎</button></td></tr>{% endfor %}
+ </tbody></table></div>
+</section>
+<div id="userDrawerBackdrop" class="user-drawer-backdrop" hidden></div>
+<aside id="userDrawer" class="user-drawer" role="dialog" aria-modal="true" aria-labelledby="drawerHeading" aria-hidden="true">
+ <div class="drawer-header"><div><h2 id="drawerHeading">Edit User</h2><p id="drawerSubtitle"></p></div><button type="button" id="drawerClose" class="drawer-close" aria-label="Close panel">✕</button></div>
+ <div class="drawer-tabs"><button type="button" class="drawer-tab active" data-tab="account">Account</button><button type="button" class="drawer-tab" data-tab="calling">Calling</button><button type="button" class="drawer-tab" data-tab="billing">Billing</button></div>
+ <div class="drawer-content">
+  <form id="drawerEditForm" method="POST" action="/users/edit">
+   <input type="hidden" name="email" id="editOriginalEmail"><input type="hidden" name="account_active" value="yes">
+   <div class="drawer-pane" data-pane="account"><label>Full Name<input id="editName" name="name" required></label><label>Email Address<input id="editEmail" name="new_email" type="email" required></label><div class="drawer-info">Account is active. Use Delete User below to disable access and release its number.</div></div>
+   <div class="drawer-pane" data-pane="calling" hidden><label>Assigned Caller ID<input id="editNumberDisplay" readonly></label><a id="changeNumberLink" class="drawer-link" href="#">Change number in Customer Details →</a><div class="drawer-setting"><span>Recording & Campaigns <small id="recordingState"></small></span><button type="submit" id="recordingButton" form="recordingForm" class="drawer-action">Toggle Access</button></div><label>Calling Provider<input id="editProviderDisplay" readonly></label><div class="drawer-info">To switch this user between Telnyx and Twilio, open Customer Details and pick a number from the other provider.</div></div>
+   <div class="drawer-pane" data-pane="billing" hidden><label>Plan Name<input id="editPlan" name="plan_name" required></label><label>Renewal Date<input id="editRenewal" name="plan_renewal" type="date" required></label><button type="submit" form="extendForm" class="drawer-action">+30 Days</button></div>
+   <div class="drawer-footer"><button class="drawer-save" type="submit">Save Changes</button></div>
+  </form>
+  <form id="extendForm" method="POST" action="/users/extend"><input type="hidden" name="email" class="drawer-target-email"><input type="hidden" name="days" value="30"></form>
+  <form id="recordingForm" method="POST" action="/users/recording"><input type="hidden" name="email" class="drawer-target-email"></form>
+  <form id="deleteForm" method="POST" action="/users/delete"><input type="hidden" name="email" class="drawer-target-email"><button type="submit" class="drawer-delete">Delete User</button></form>
+ </div>
+</aside>
+<style>
+.premium-users{background:#172137;border:1px solid #2c3b58;border-radius:18px;padding:24px;margin-top:26px;color:#f3f6ff}.premium-users-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.premium-users-head h2{margin:0;font-size:23px}.premium-users-head p{color:#9fb1d0;margin:6px 0 0}.premium-count{border-radius:20px;background:#252f4b;padding:7px 12px;color:#b6c8e7;white-space:nowrap}.premium-search{display:flex;align-items:center;gap:9px;border:1px solid #30405e;border-radius:10px;padding:0 13px;margin:22px 0 12px;background:#111b30}.premium-search input{background:transparent!important;border:0!important;color:white!important;outline:0;width:100%;padding:13px 0!important}.premium-scroll{overflow-x:auto}.premium-table{width:100%;border-collapse:collapse;min-width:940px;table-layout:fixed}.premium-table th{font-size:11px;letter-spacing:.07em;color:#9fb6da;background:#10192b;text-align:left;padding:15px 12px}.premium-table td{padding:17px 12px;border-bottom:1px solid #2c3b55;vertical-align:middle;font-size:13px;overflow-wrap:anywhere}.premium-table th:nth-child(1){width:26%}.premium-table th:nth-child(2){width:17%}.premium-table th:nth-child(3){width:21%}.premium-table th:nth-child(4){width:11%}.premium-table th:nth-child(5){width:14%}.premium-table th:nth-child(6){width:11%}.premium-table td strong{display:block;font-size:14px}.premium-table td small{display:block;color:#a9bddd;margin-top:5px}.premium-table .number-cell{white-space:nowrap}.plan-pill{background:#16294f;color:#a9cbff;border-radius:15px;padding:6px 9px;display:inline-block;font-size:11px}.status-pill{border-radius:16px;padding:6px 10px;font-weight:600;font-size:11px}.status-active{background:#173c39;color:#30d5a4}.status-demo{background:#453b1b;color:#f5c45c}.premium-edit,.drawer-action{background:#222f4a;border:1px solid #354766;color:#fff;border-radius:9px;padding:10px 13px;cursor:pointer}.premium-edit:hover,.drawer-action:hover{border-color:#2f6dff}.user-drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:900}.user-drawer-backdrop[hidden]{display:none}.user-drawer{position:fixed;right:0;top:0;bottom:0;width:min(480px,100vw);background:#111a2d;color:#f4f6ff;z-index:901;box-shadow:-18px 0 55px #0008;transform:translateX(105%);transition:transform .2s ease;display:flex;flex-direction:column}.user-drawer.open{transform:translateX(0)}.drawer-header{display:flex;justify-content:space-between;align-items:center;padding:24px;border-bottom:1px solid #293953}.drawer-header h2{margin:0}.drawer-header p{color:#a5b9d8;margin:5px 0 0}.drawer-close{border:1px solid #35445e;border-radius:8px;background:transparent;color:white;padding:9px 13px;cursor:pointer}.drawer-tabs{display:flex;gap:7px;padding:16px 22px}.drawer-tab{flex:1;background:#1c2941;color:#a9bcda;border:1px solid #34415a;border-radius:9px;padding:11px 5px;cursor:pointer}.drawer-tab.active{background:#2563ff;color:#fff}.drawer-content{padding:10px 24px 28px;overflow-y:auto;flex:1}.drawer-pane label{display:block;font-size:13px;color:#a9bddd;margin:15px 0}.drawer-pane label input{display:block;width:100%;box-sizing:border-box;margin-top:7px;background:#17243a;color:#fff;border:1px solid #354663;border-radius:9px;padding:12px}.drawer-info{font-size:12px;color:#b4c6e3;line-height:1.6;background:#1d2a41;border-radius:10px;padding:12px;margin:18px 0}.drawer-link{color:#8fbaff;display:block;margin:12px 0}.drawer-setting{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:24px 0}.drawer-setting small{display:block;color:#9fb1d0;margin-top:4px}.drawer-footer{margin-top:24px}.drawer-save{background:#2563ff;border:0;border-radius:9px;color:white;font-weight:700;padding:13px 20px;width:100%;cursor:pointer}.drawer-delete{margin-top:22px;background:transparent;border:1px solid #a84655;color:#ff7186;border-radius:9px;padding:12px;cursor:pointer}
+</style>
+<script>
+(function(){
+ const drawer=document.getElementById('userDrawer'),backdrop=document.getElementById('userDrawerBackdrop');
+ function close(){drawer.classList.remove('open');drawer.setAttribute('aria-hidden','true');backdrop.hidden=true;document.body.style.overflow='';}
+ function tab(name){document.querySelectorAll('.drawer-tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));document.querySelectorAll('.drawer-pane').forEach(x=>x.hidden=x.dataset.pane!==name);}
+ document.querySelectorAll('.premium-edit').forEach(button=>button.addEventListener('click',()=>{
+  const u=JSON.parse(button.dataset.user);if(u.role==='admin'){alert('Admin account cannot be edited here.');return;}
+  document.getElementById('drawerSubtitle').textContent=u.name+' · Account settings';
+  document.getElementById('editOriginalEmail').value=u.email;
+  document.querySelectorAll('.drawer-target-email').forEach(x=>x.value=u.email);
+  document.getElementById('editName').value=u.name;document.getElementById('editEmail').value=u.email;
+  document.getElementById('editNumberDisplay').value=u.number||'Unassigned';
+  document.getElementById('editProviderDisplay').value=(u.provider==='twilio'?'Twilio (backup)':'Telnyx (main)');
+  document.getElementById('editPlan').value=u.plan||'';document.getElementById('editRenewal').value=u.renewal||'';
+  document.getElementById('recordingState').textContent=u.recording?'Enabled':'Disabled';
+  document.getElementById('changeNumberLink').href='/customers/'+encodeURIComponent(u.email);
+  tab('account');backdrop.hidden=false;drawer.classList.add('open');drawer.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';
+ }));
+ document.querySelectorAll('.drawer-tab').forEach(b=>b.addEventListener('click',()=>tab(b.dataset.tab)));
+ document.getElementById('drawerClose').addEventListener('click',close);backdrop.addEventListener('click',close);
+ document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+ document.getElementById('deleteForm').addEventListener('submit',e=>{if(!confirm('Disable this user, revoke sessions and release their number? Payment history will remain.'))e.preventDefault()});
+ document.getElementById('userSearch').addEventListener('input',e=>{const q=e.target.value.toLowerCase().trim();document.querySelectorAll('.premium-user-row').forEach(row=>row.hidden=!row.dataset.search.includes(q))});
+})();
+</script>
+{% endblock %}

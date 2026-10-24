@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#050a19">
+    <title>Sign in — {{ brand_name }}</title>
+    <link rel="icon" href="{{ brand_icon }}">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/csrf.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="vb vb-login-page">
+    <div class="vb-login">
+        <section class="vb-login-brand" aria-hidden="true">
+            <div class="vb-login-dots"></div>
+            <img class="vb-login-logo" src="{{ brand_logo_dark }}" alt="">
+            <div class="vb-login-copy">
+                <h2>Connect with anyone, <em>anywhere in the world.</em></h2>
+                <p>Browser-based business calling with a built-in CRM, power dialer, call recordings and team analytics — no phones or apps to install.</p>
+            </div>
+            <div class="vb-login-feats">
+                <span>🌍 Local numbers worldwide</span><span>⚡ Power Dialer</span><span>⏺ Call recording</span>
+            </div>
+        </section>
+        <section class="vb-login-form">
+            <div class="vb-login-box">
+                <img class="vb-login-mini" src="{{ brand_header_dark }}" alt="{{ brand_name }}">
+                <h1>Welcome back</h1>
+                <p class="vb-login-sub">Sign in to your {{ brand_name }} workspace</p>
+
+                {% if error %}
+                <div class="error-msg" role="alert">{{ error }}</div>
+                {% endif %}
+
+                <form method="POST" action="/login">
+                    <div class="form-group">
+                        <label for="email">Work email</label>
+                        <input id="email" type="email" name="email" required placeholder="you@company.com" autocomplete="email" autofocus>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <div class="vb-pass">
+                            <input id="password" type="password" name="password" required placeholder="••••••••" autocomplete="current-password">
+                            <button type="button" class="vb-pass-toggle" aria-label="Show password" onclick="var i=document.getElementById('password');var s=i.type==='password';i.type=s?'text':'password';this.textContent=s?'Hide':'Show';this.setAttribute('aria-label',s?'Hide password':'Show password')">Show</button>
+                        </div>
+                    </div>
+                    <div class="vb-login-help"><span></span><a href="https://api.whatsapp.com/send?phone={{ support_whatsapp }}" target="_blank" rel="noopener noreferrer">Need help signing in?</a></div>
+                    <button type="submit" class="btn btn-primary vb-login-btn">Sign in</button>
+                </form>
+                <p class="vb-login-secure">🔒 Encrypted connection · {{ brand_name }} · {{ brand_tagline }}</p>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<style>
+#inCallView[hidden], #padBody[hidden] { display: none !important; }
+#inCallView {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--text-primary);
+    padding-top: 8px;
+}
+#inCallView .incall-state { color: var(--text-muted); font-size: 14px; margin: 0 0 14px; }
+#inCallView .incall-avatar {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: #22c55e;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 10px rgba(34, 197, 94, .16);
+    margin-bottom: 14px;
+}
+#inCallView .incall-number { font-size: 22px; font-weight: 700; letter-spacing: .4px; margin-bottom: 18px; }
+#inCallView .incall-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 88px);
+    gap: 16px 8px;
+    margin-bottom: 16px;
+}
+#inCallView .incall-btn {
+    background: transparent; border: 0; color: var(--text-secondary);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    cursor: pointer; font-size: 12px; padding: 0;
+}
+#inCallView .incall-btn svg {
+    width: 58px; height: 58px; padding: 16px; box-sizing: border-box;
+    border-radius: 50%; border: 1.5px solid var(--border);
+}
+#inCallView .incall-btn.on { color: #fb7185; }
+#inCallView .incall-btn.on svg { border-color: #fb7185; }
+#inCallView .hangup-big {
+    width: 64px; height: 64px; border-radius: 50%; border: 0;
+    background: #ef4458; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px rgba(239, 68, 88, .35);
+    margin-top: 6px;
+}
+#inCallView .dtmf-pad { width: 100%; max-width: 250px; margin-bottom: 10px; }
+#inCallView .dtmf-pad .dial-pad { gap: 8px; margin-bottom: 0; max-width: 250px; }
+#inCallView .dtmf-pad .dial-btn { width: 64px; height: 64px; aspect-ratio: auto; font-size: 18px; }
+#inCallView .dtmf-display { text-align: center; min-height: 18px; letter-spacing: 2px; margin-bottom: 6px; }
+#inCallView.keypad-open .incall-avatar { display: none; }
+#inCallView.keypad-open .incall-grid { display: none; }
+#inCallView.keypad-open .incall-number { margin-bottom: 10px; }
+#composeView[hidden], #callsView[hidden], #incomingView[hidden] { display: none !important; }
+#incomingView { width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 12px; }
+#incomingView .incall-avatar {
+    width: 72px; height: 72px; border-radius: 50%; background: #22c55e;
+    display: flex; align-items: center; justify-content: center; margin: 8px 0 12px;
+}
+#incomingView .incall-number { font-size: 22px; font-weight: 700; margin-bottom: 18px; }
+#composeView, #callsView { width: 100%; }
+.back-link {
+    background: none; border: 0; color: var(--text-secondary);
+    cursor: pointer; font-size: 14px; padding: 0 0 14px; display: flex; align-items: center; gap: 6px;
+}
+.compose-title { font-size: 20px; font-weight: 700; margin: 0 0 14px; text-align: left; width: 100%; }
+#composeInput { margin-bottom: 16px; }
+.calls-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.calls-head strong { font-size: 18px; }
+.calls-head button { background: none; border: 0; color: var(--text-secondary); font-size: 22px; cursor: pointer; }
+.call-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.call-avatar {
+    width: 40px; height: 40px; border-radius: 50%; background: #3b82f6;
+    display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+}
+.call-meta { flex: 1; min-width: 0; }
+.call-meta strong { display: block; font-size: 15px; }
+.call-meta span { color: var(--text-muted); font-size: 12px; }
+.call-hang {
+    width: 40px; height: 40px; border-radius: 50%; border: 0; background: #3a1d28; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+}
+.rail-label { font-size:12px; color:var(--text-muted); }
+.dial-rail {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin: 16px;
+    padding: 22px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.dial-rail .your-number { text-align: center; }
+.dial-rail .number-display { color: var(--text-primary); font-size: 22px; letter-spacing: 2px; }
+.dial-rail .dial-btn { background: var(--bg-secondary); border-color: var(--border); }
+.dial-rail .call-btn.green { background: var(--success); box-shadow: none; }
+</style>
+<aside class="dial-rail" id="dialRail">
+        <button type="button" class="rail-close" id="railClose" aria-label="Hide dialer"><span aria-hidden="true">⌄</span> Hide dialer</button>
+        <div class="your-number">
+            <span class="rail-label">Calling from</span><strong class="rail-own-number">{{ user.phone_number }}</strong>
+        </div>
+        {% set plan = plan_status(user) %}
+        {% set no_line = (not user.phone_number) and user.role != 'admin' %}
+        <div id="dialerConfig" hidden data-provider="{{ user.provider or 'telnyx' }}" data-from="{{ user.phone_number or '' }}" data-recording="{{ 1 if has_recording(user) else 0 }}" data-expired="{{ 1 if plan.days_left < 0 and user.role != 'admin' else 0 }}" data-nocall="{{ 1 if no_line else 0 }}"{% set prefs = user_prefs(user) %} data-ringtone="{{ prefs.ringtone }}" data-ringvol="{{ prefs.ring_volume }}" data-autorec="{{ 1 if prefs.auto_record and has_recording(user) else 0 }}"></div>
+        <div id="rtcStatus" style="font-size:12px;margin-bottom:10px;color:var(--text-muted);">Connecting...</div>
+        <p id="activityTitle" hidden>Ready to call</p>
+        <p id="activitySub" hidden></p>
+        <audio id="remoteAudio" autoplay playsinline></audio>
+        <div id="incomingView" hidden>
+            <p class="incall-state">Incoming call</p>
+            <div class="incall-avatar">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg>
+            </div>
+            <div class="incall-number" id="incomingNumber">Unknown</div>
+            <div class="call-actions">
+                <button class="call-btn green" type="button" onclick="answerIncoming()" title="Answer">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg>
+                </button>
+                <button class="call-btn gray" type="button" onclick="declineIncoming()" title="Decline" style="background:#e11d48;color:#fff;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M12 9c-1.7 0-3.2.25-4.6.72v2.7c0 .4-.24.76-.6.92-.9.4-1.7.95-2.4 1.6-.2.18-.46.28-.74.28-.27 0-.53-.11-.71-.29L.54 12.5a1 1 0 0 1 0-1.41C3.3 8.4 7.45 7 12 7s8.7 1.4 11.46 4.09a1 1 0 0 1 0 1.41l-2.41 2.43c-.18.18-.44.29-.71.29-.28 0-.54-.1-.74-.28-.7-.65-1.5-1.2-2.4-1.6a1 1 0 0 1-.6-.92V9.72A15.2 15.2 0 0 0 12 9z"/></svg>
+                </button>
+            </div>
+        </div>
+        {% if no_line %}
+        <div class="rail-noline">
+            <span class="rail-noline-ico" aria-hidden="true">📵</span>
+            <strong>No calling number yet</strong>
+            <small>Ask your admin to assign a number to make and receive calls from this account.</small>
+            {% if is_owner(user) %}<a class="dn-btn primary" href="/team">Open Team dashboard</a>{% endif %}
+        </div>
+        {% endif %}
+        <div id="padBody"{% if no_line %} hidden{% endif %}>
+        <div class="dial-input-row pn-row">
+            <div class="pn-field">
+                <span class="pn-cc" id="pnCc" aria-hidden="true">+</span>
+                <input type="tel" id="numberInput" class="number-display" placeholder="Enter number" autocomplete="off" inputmode="tel" aria-describedby="pnHint">
+                <button type="button" class="pn-clear" id="pnClear" aria-label="Clear number" hidden>&times;</button>
+                <button type="button" id="dialPasteButton" class="pn-paste" title="Paste number from clipboard" aria-label="Paste number from clipboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></button>
+            </div>
+        </div>
+        <div class="pn-hint" id="pnHint">Add the country code, e.g. +44</div>
+        <div class="dial-pad" id="dialPad">
+            <button class="dial-btn" onclick="press('1')">1</button>
+            <button class="dial-btn" onclick="press('2')">2</button>
+            <button class="dial-btn" onclick="press('3')">3</button>
+            <button class="dial-btn" onclick="press('4')">4</button>
+            <button class="dial-btn" onclick="press('5')">5</button>
+            <button class="dial-btn" onclick="press('6')">6</button>
+            <button class="dial-btn" onclick="press('7')">7</button>
+            <button class="dial-btn" onclick="press('8')">8</button>
+            <button class="dial-btn" onclick="press('9')">9</button>
+            <button class="dial-btn" onclick="press('*')">*</button>
+            <button class="dial-btn" type="button" id="zeroBtn"><span class="key-main">0</span><span class="key-sub">+</span></button>
+            <button class="dial-btn" onclick="press('#')">#</button>
+        </div>
+        <div class="call-actions">
+            <button class="call-btn gray" onclick="backspace()" title="Backspace">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 6H8l-5 6 5 6h13a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M18 9l-6 6M12 9l6 6"/></svg>
+            </button>
+            <button class="call-btn green" id="callBtn" onclick="makeCall()" title="Call">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg>
+            </button>
+            <button class="call-btn gray" onclick="hangup()" title="Hangup" style="background:#e11d48;color:#fff;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M12 9c-1.7 0-3.2.25-4.6.72v2.7c0 .4-.24.76-.6.92-.9.4-1.7.95-2.4 1.6-.2.18-.46.28-.74.28-.27 0-.53-.11-.71-.29L.54 12.5a1 1 0 0 1 0-1.41C3.3 8.4 7.45 7 12 7s8.7 1.4 11.46 4.09a1 1 0 0 1 0 1.41l-2.41 2.43c-.18.18-.44.29-.71.29-.28 0-.54-.1-.74-.28-.7-.65-1.5-1.2-2.4-1.6a1 1 0 0 1-.6-.92V9.72A15.2 15.2 0 0 0 12 9z"/></svg>
+            </button>
+        </div>
+        <div id="callStatus" style="margin-top:16px;font-size:13px;color:var(--text-secondary);min-height:20px;"></div>
+        <button type="button" id="backHeld" hidden onclick="resumeHeld()" style="margin-top:12px;">Back to held call</button>
+        </div>
+
+        <div class="incall-screen" id="inCallView" hidden>
+        <p class="incall-state" id="inCallState">Calling...</p>
+        <div class="incall-avatar">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg>
+        </div>
+        <div class="incall-number" id="inCallNumber"></div>
+        <div class="incall-grid">
+            <button type="button" class="incall-btn" id="muteBtn" onclick="toggleMute()">
+                <svg id="muteIcon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                <span id="muteLabel">Mute</span>
+            </button>
+            <button type="button" class="incall-btn" id="keypadBtn" onclick="toggleKeypad()">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="4" height="4" rx="1"/><rect x="10" y="4" width="4" height="4" rx="1"/><rect x="16" y="4" width="4" height="4" rx="1"/><rect x="4" y="10" width="4" height="4" rx="1"/><rect x="10" y="10" width="4" height="4" rx="1"/><rect x="16" y="10" width="4" height="4" rx="1"/><rect x="4" y="16" width="4" height="4" rx="1"/><rect x="10" y="16" width="4" height="4" rx="1"/><rect x="16" y="16" width="4" height="4" rx="1"/></svg>
+                <span>Keypad</span>
+            </button>
+            <button type="button" class="incall-btn" id="holdBtn" onclick="toggleHold()">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+                <span id="holdLabel">Hold</span>
+            </button>
+            <button type="button" class="incall-btn" onclick="addCall()">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M16 11a3 3 0 1 0-3-3"/><path d="M16 21v-2a4 4 0 0 0-3-3.87"/><circle cx="8" cy="8" r="3"/><path d="M2 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M19 8v6M16 11h6"/></svg>
+                <span>Add Call</span>
+            </button>
+            <button type="button" class="incall-btn" onclick="transferCall()">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 7h11l-3-3M18 7l-3 3"/><path d="M17 17H6l3 3M6 17l3-3"/></svg>
+                <span>Transfer</span>
+            </button>
+            <button type="button" class="incall-btn" id="recBtn" onclick="toggleRec()" aria-label="Start or stop recording" title="Record call">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+                <span id="recLabel">REC</span>
+            </button>
+            <button type="button" class="incall-btn" onclick="openCallList()">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
+                <span>Call List</span>
+            </button>
+        </div>
+        <div class="dtmf-pad" id="dtmfPad" hidden>
+            <div class="dtmf-display" id="dtmfDisplay"></div>
+            <button type="button" class="incall-btn" onclick="toggleKeypad()" style="margin-bottom:8px;">Close keypad</button>
+            <div class="dial-pad">
+                <button class="dial-btn" type="button" onclick="press('1')">1</button>
+                <button class="dial-btn" type="button" onclick="press('2')">2</button>
+                <button class="dial-btn" type="button" onclick="press('3')">3</button>
+                <button class="dial-btn" type="button" onclick="press('4')">4</button>
+                <button class="dial-btn" type="button" onclick="press('5')">5</button>
+                <button class="dial-btn" type="button" onclick="press('6')">6</button>
+                <button class="dial-btn" type="button" onclick="press('7')">7</button>
+                <button class="dial-btn" type="button" onclick="press('8')">8</button>
+                <button class="dial-btn" type="button" onclick="press('9')">9</button>
+                <button class="dial-btn" type="button" onclick="press('*')">*</button>
+                <button class="dial-btn" type="button" onclick="press('0')">0</button>
+                <button class="dial-btn" type="button" onclick="press('#')">#</button>
+            </div>
+        </div>
+        <button class="hangup-big" type="button" onclick="hangup()" title="Hang up">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M12 9c-1.7 0-3.2.25-4.6.72v2.7c0 .4-.24.76-.6.92-.9.4-1.7.95-2.4 1.6-.2.18-.46.28-.74.28-.27 0-.53-.11-.71-.29L.54 12.5a1 1 0 0 1 0-1.41C3.3 8.4 7.45 7 12 7s8.7 1.4 11.46 4.09a1 1 0 0 1 0 1.41l-2.41 2.43c-.18.18-.44.29-.71.29-.28 0-.54-.1-.74-.28-.7-.65-1.5-1.2-2.4-1.6a1 1 0 0 1-.6-.92V9.72A15.2 15.2 0 0 0 12 9z"/></svg>
+        </button>
+        </div>
+
+        <div id="composeView" hidden>
+            <button type="button" class="back-link" onclick="backToCall()">&#8592; Back to call</button>
+            <h3 class="compose-title" id="composeTitle">New call</h3>
+            <input id="composeInput" class="number-display" placeholder="Enter a number" readonly>
+            <div class="dial-pad">
+                <button class="dial-btn" type="button" onclick="composePress('1')">1</button>
+                <button class="dial-btn" type="button" onclick="composePress('2')">2</button>
+                <button class="dial-btn" type="button" onclick="composePress('3')">3</button>
+                <button class="dial-btn" type="button" onclick="composePress('4')">4</button>
+                <button class="dial-btn" type="button" onclick="composePress('5')">5</button>
+                <button class="dial-btn" type="button" onclick="composePress('6')">6</button>
+                <button class="dial-btn" type="button" onclick="composePress('7')">7</button>
+                <button class="dial-btn" type="button" onclick="composePress('8')">8</button>
+                <button class="dial-btn" type="button" onclick="composePress('9')">9</button>
+                <button class="dial-btn" type="button" onclick="composePress('*')">*</button>
+                <button class="dial-btn" type="button" onclick="composePress('0')">0</button>
+                <button class="dial-btn" type="button" onclick="composePress('#')">#</button>
+            </div>
+            <div class="call-actions">
+                <button class="call-btn gray" type="button" onclick="composeBackspace()" title="Backspace">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 6H8l-5 6 5 6h13a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M18 9l-6 6M12 9l6 6"/></svg>
+                </button>
+                <button class="call-btn green" type="button" onclick="confirmCompose()" title="Call">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div id="callsView" hidden>
+            <div class="calls-head">
+                <strong>Calls</strong>
+                <button type="button" onclick="closeCalls()" title="Close">&times;</button>
+            </div>
+            <div id="callsList"></div>
+        </div>
+
+</aside>

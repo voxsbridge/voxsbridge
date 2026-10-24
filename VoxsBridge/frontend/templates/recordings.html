@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Recordings — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div><h1>Recordings</h1><p class="muted">Every recorded call, stored privately. Only you can play them.</p></div>
+</div>
+{% if not recording_ok %}
+<div class="center-card">
+    <div class="warn-ico">⏺</div>
+    <h2>Upgrade Required</h2>
+    <p>Call recording and campaigns are the $25 upgrade. Ask your admin to unlock this account.</p>
+</div>
+{% endif %}
+{% if recordings %}
+<div class="stack">
+    {% set ns = namespace(day='') %}
+    {% for rec in recordings %}
+    {% if rec.date_label != ns.day %}{% set ns.day = rec.date_label %}<div class="log-group">{{ rec.date_label }}</div>{% endif %}
+    <div class="panel row-card media-row" data-id="{{ rec.id }}">
+        <div class="media-meta">
+            <strong>{{ rec.contact_name or rec.number }}</strong>
+            <p class="muted">{% if rec.contact_name %}{{ rec.number }} · {% endif %}{{ rec.duration // 60 }}m {{ rec.duration % 60 }}s · {{ rec.time_label }}</p>
+        </div>
+        <audio controls preload="none" src="{{ rec.url }}"></audio>
+        <span class="row-actions">
+            <a class="icon-btn" href="{{ rec.url }}?download=1" title="Download" aria-label="Download recording">⬇</a>
+            <button type="button" class="icon-btn" onclick="deleteRecording(this)" title="Delete" aria-label="Delete recording">🗑</button>
+        </span>
+    </div>
+    {% endfor %}
+</div>
+{% elif recording_ok %}
+<p class="empty-note">No recordings yet. Press REC during a call and the recording will show up here.</p>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+async function deleteRecording(btn) {
+    const row = btn.closest('[data-id]');
+    if (!confirm('Delete this recording permanently?')) return;
+    const res = await fetch('/api/recordings/' + encodeURIComponent(row.dataset.id), {method: 'DELETE'});
+    if (!res.ok) { alert('Could not delete recording'); return; }
+    row.remove();
+}
+</script>
+{% endblock %}

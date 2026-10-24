@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Voicemails — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div><h1>Voicemails</h1><p class="muted">When you miss a call, decline it or turn on Do Not Disturb, the caller can leave a message here.</p></div>
+</div>
+<div class="mini-stats">
+    <div class="panel mini"><b>{{ stats.total }}</b><span>Total</span></div>
+    <div class="panel mini"><b id="unreadCount">{{ stats.unread }}</b><span>Unread</span></div>
+    <div class="panel mini"><b>{{ stats.today }}</b><span>Today</span></div>
+</div>
+<div class="chips">
+    <a href="/voicemails" class="{% if selected == 'all' %}on{% endif %}">All {{ stats.total }}</a>
+    <a href="/voicemails?filter=unread" class="{% if selected == 'unread' %}on{% endif %}">Unread {{ stats.unread }}</a>
+</div>
+{% if voicemails %}
+<div class="stack">
+    {% set ns = namespace(day='') %}
+    {% for item in voicemails %}
+    {% if item.date_label != ns.day %}{% set ns.day = item.date_label %}<div class="log-group">{{ item.date_label }}</div>{% endif %}
+    <div class="panel row-card media-row {% if not item.is_read %}unread{% endif %}" data-id="{{ item.id }}">
+        <div class="media-meta">
+            <strong>{{ item.contact_name or item.number }}</strong>
+            <p class="muted">{% if item.contact_name %}{{ item.number }} · {% endif %}{{ item.duration }}s · {{ item.time_label }}</p>
+        </div>
+        <audio controls preload="none" src="{{ item.url }}" onplay="markHeard(this)"></audio>
+        <span class="row-actions">
+            {% if item.number and item.number.startswith('+') %}<a class="module-btn" href="/dialer?number={{ item.number|urlencode }}&amp;call=1">☎ Call back</a>{% endif %}
+            <button type="button" class="icon-btn" onclick="deleteVoicemail(this)" title="Delete" aria-label="Delete voicemail">🗑</button>
+        </span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty-note">No voicemails{% if selected == 'unread' %} to listen to{% endif %}. Messages callers leave when a call goes unanswered will show up here.</p>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+function markHeard(audio) {
+    const row = audio.closest('[data-id]');
+    if (!row.classList.contains('unread')) return;
+    row.classList.remove('unread');
+    const count = document.getElementById('unreadCount');
+    count.textContent = String(Math.max(0, Number(count.textContent) - 1));
+}
+async function deleteVoicemail(btn) {
+    const row = btn.closest('[data-id]');
+    if (!confirm('Delete this voicemail permanently?')) return;
+    const res = await fetch('/api/recordings/' + encodeURIComponent(row.dataset.id), {method: 'DELETE'});
+    if (!res.ok) { alert('Could not delete voicemail'); return; }
+    row.remove();
+}
+</script>
+{% endblock %}

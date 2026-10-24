@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ account.name }} — Companies — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="team-back" href="/companies">← Companies</a>
+    <h1>{{ account.name }}</h1>
+    <p class="muted">{{ summary.total }} users · {{ summary.online }} online · {{ 'Reseller: ' ~ account.reseller_name if account.reseller_name else 'Direct customer' }}</p>
+  </div>
+  <div class="cm-actions"><a class="btn btn-primary" href="/team?account={{ account.id }}">🟢 Live team view</a><a class="dn-btn" href="/users">+ Add user</a></div>
+</div>
+{% if msg %}<div class="success-msg">Saved.</div>{% endif %}
+
+<section class="panel">
+  <h2>Team</h2>
+  <div class="table-scroll"><table class="modern-table">
+    <thead><tr><th>User</th><th>Role</th><th>Number</th><th>Status</th><th>Calls today</th><th>Plan</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for m in members %}
+    <tr>
+      <td><strong>{{ m.name }}</strong><small>{{ m.email }}</small></td>
+      <td>
+        <form method="post" action="/companies/{{ account.id }}/members" class="inline-form">
+          <input type="hidden" name="user_id" value="{{ m.id }}"><input type="hidden" name="action" value="role">
+          <select name="account_role" onchange="this.form.requestSubmit()" aria-label="Role of {{ m.name }}">
+            <option value="owner" {% if m.account_role == 'owner' %}selected{% endif %}>Owner</option>
+            <option value="agent" {% if m.account_role != 'owner' %}selected{% endif %}>Agent</option>
+          </select>
+        </form>
+      </td>
+      <td>{{ m.phone_number or '—' }}{% if m.phone_number %}<small><span class="dn-pill {{ m.provider }}">{{ m.provider|capitalize }}</span></small>{% endif %}</td>
+      <td><span class="status-pill st-{{ m.status }}">{{ {'online':'Online','on_call':'On call','ringing':'Ringing','dialing':'Dialing','offline':'Offline'}[m.status] }}</span></td>
+      <td>{{ m.calls_today }}</td>
+      <td>{{ m.plan_name or '—' }}<small>{{ m.plan_renewal or '' }}</small></td>
+      <td class="row-actions">
+        <a class="dn-btn" href="/customers/{{ m.email|urlencode }}">Details</a>
+        <form method="post" action="/companies/{{ account.id }}/members" class="inline-form">
+          <input type="hidden" name="user_id" value="{{ m.id }}"><input type="hidden" name="action" value="move">
+          <select name="target_account" onchange="if(this.value&&confirm('Move this user to the selected company? They become an agent there.'))this.form.requestSubmit();else this.value=''" aria-label="Move {{ m.name }}">
+            <option value="">Move to…</option>
+            {% for c in companies if c.id|string != account.id|string %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </form>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="7" class="empty-note">No users in this company yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% if others %}
+  <form method="post" action="/companies/{{ account.id }}/members" class="add-member-form">
+    <input type="hidden" name="action" value="add">
+    <label>Add an existing user to this company
+      <select name="user_id" required><option value="">Select user…</option>{% for o in others %}<option value="{{ o.id }}">{{ o.name }} ({{ o.email }})</option>{% endfor %}</select>
+    </label>
+    <label>Role<select name="account_role"><option value="agent">Agent</option><option value="owner">Owner</option></select></label>
+    <button class="dn-btn primary">Add to company</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="panel" style="max-width:720px">
+  <h2>Company settings</h2>
+  <form method="post" action="/companies/{{ account.id }}/update" class="rates-form">
+    <label>Company name<input name="name" value="{{ account.name }}" required maxlength="200"></label>
+    <label>Reseller<select name="reseller_id"><option value="">Direct customer (no reseller)</option>{% for r in resellers %}<option value="{{ r.id }}" {% if account.reseller_id and r.id|string == account.reseller_id|string %}selected{% endif %}>{{ r.name }}</option>{% endfor %}</select></label>
+    <label style="grid-column:1/-1">Notes<input name="notes" value="{{ account.notes or '' }}" maxlength="2000"></label>
+    <div><button class="btn btn-primary">Save</button></div>
+  </form>
+</section>
+{% endblock %}

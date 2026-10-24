@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Calling Preferences — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Calling Preferences</h1><p class="muted">Choose how incoming calls ring and whether calls are recorded automatically.</p></div></div>
+
+<section class="panel prefs-card">
+  <div class="prefs-head"><span class="prefs-ico" aria-hidden="true">🔔</span><div><h2>Ringtone</h2><p class="muted">Plays in this browser when a call comes in.</p></div></div>
+  <div class="tone-grid" role="radiogroup" aria-label="Ringtone">
+    {% for key, label, desc in [('classic','Classic','Traditional phone ring'),('uk','UK double ring','Two short rings'),('digital','Digital','Quick electronic beeps'),('chime','Soft chime','Gentle rising notes'),('pulse','Pulse','Two-tone pulse'),('silent','Silent','Screen only, no sound')] %}
+    <label class="tone-option">
+      <input type="radio" name="ringtone" value="{{ key }}" {% if prefs.ringtone == key %}checked{% endif %}>
+      <span class="tone-body"><strong>{{ label }}</strong><small>{{ desc }}</small></span>
+      {% if key != 'silent' %}<button type="button" class="tone-play" data-tone="{{ key }}" aria-label="Preview {{ label }}">▶</button>{% endif %}
+    </label>
+    {% endfor %}
+  </div>
+  <label class="prefs-volume">Ring volume <span id="volValue">{{ prefs.ring_volume }}%</span>
+    <input type="range" id="ringVolume" min="0" max="100" step="5" value="{{ prefs.ring_volume }}">
+  </label>
+</section>
+
+<section class="panel prefs-card">
+  <div class="prefs-head"><span class="prefs-ico" aria-hidden="true">⏺</span><div><h2>Call recording</h2><p class="muted">Recordings are saved privately in Recordings.</p></div></div>
+  <label class="prefs-switch {% if not recording_ok %}disabled{% endif %}">
+    <span><strong>Record every call automatically</strong><small>{% if recording_ok %}Recording starts as soon as a call is answered. You can still stop it with the REC button.{% else %}Call recording is an upgrade. Ask your admin to enable it for this account.{% endif %}</small></span>
+    <input type="checkbox" id="autoRecord" role="switch" {% if prefs.auto_record and recording_ok %}checked{% endif %} {% if not recording_ok %}disabled{% endif %}>
+    <span class="switch-ui" aria-hidden="true"></span>
+  </label>
+  <p class="prefs-note">Some countries require you to tell the other person that the call is being recorded.</p>
+</section>
+
+<div class="prefs-actions"><button type="button" class="btn btn-primary" id="savePrefs">Save preferences</button><span id="prefsMsg" class="muted" aria-live="polite"></span></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const vol = document.getElementById('ringVolume');
+  const volValue = document.getElementById('volValue');
+  let stopPreview = null;
+  function stop() { if (stopPreview) { stopPreview(); stopPreview = null; } document.querySelectorAll('.tone-play.playing').forEach(b => { b.classList.remove('playing'); b.textContent = '▶'; }); }
+  vol.addEventListener('input', () => { volValue.textContent = vol.value + '%'; });
+  document.querySelectorAll('.tone-play').forEach((btn) => btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    const was = btn.classList.contains('playing');
+    stop();
+    if (was || !window.VoxsBridgeRing) return;
+    stopPreview = window.VoxsBridgeRing.start(btn.dataset.tone, Number(vol.value));
+    btn.classList.add('playing'); btn.textContent = '■';
+    setTimeout(() => { if (btn.classList.contains('playing')) stop(); }, 4000);
+  }));
+  window.addEventListener('voxsbridge:page-leave', stop);
+  document.getElementById('savePrefs').addEventListener('click', async () => {
+    stop();
+    const msg = document.getElementById('prefsMsg');
+    const body = {
+      ringtone: (document.querySelector('input[name=ringtone]:checked') || {}).value || 'classic',
+      ring_volume: Number(vol.value),
+      auto_record: document.getElementById('autoRecord').checked,
+    };
+    msg.textContent = 'Saving...';
+    const res = await fetch('/api/preferences', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { msg.textContent = data.detail || 'Could not save'; return; }
+    const cfg = document.getElementById('dialerConfig');   // apply to the dialer right away
+    if (cfg) { cfg.dataset.ringtone = body.ringtone; cfg.dataset.ringvol = String(body.ring_volume); cfg.dataset.autorec = body.auto_record ? '1' : '0'; }
+    msg.textContent = '✓ Saved';
+  });
+})();
+</script>
+{% endblock %}

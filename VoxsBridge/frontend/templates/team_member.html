@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ member.name }} — Team — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="team-back" href="{{ back_url }}">← Team</a>
+    <h1>{{ member.name }}</h1>
+    <p class="muted">{{ member.phone_number or 'No calling number' }} · {{ member.email }}</p>
+  </div>
+  {% if live %}<span class="status-pill big st-{{ live.status }}">{{ {'online':'Online','on_call':'On call','ringing':'Ringing','dialing':'Dialing','offline':'Offline'}[live.status] }}</span>{% endif %}
+</div>
+{% if live %}
+<div class="team-stats">
+  <div class="team-stat"><small>Calls today</small><strong>{{ live.calls_today }}</strong></div>
+  <div class="team-stat ok"><small>Answered today</small><strong>{{ live.answered_today }}</strong></div>
+  <div class="team-stat"><small>Talk time today</small><strong>{{ live.talk_today // 60 }}m</strong></div>
+  <div class="team-stat"><small>Last call</small><strong>{{ live.last_call or '—' }}</strong></div>
+</div>
+{% endif %}
+
+<div class="split-2 member-split">
+  <section class="panel">
+    <h2>Call logs</h2>
+    {% if calls %}
+    {% set ns = namespace(day='') %}
+    {% for c in calls %}
+      {% if c.date_label != ns.day %}{% set ns.day = c.date_label %}<div class="log-group">{{ c.date_label }}</div>{% endif %}
+      <div class="log-row">
+        <span class="pip {% if c.status in ['answered','completed','active'] %}green{% else %}red{% endif %}">{% if c.direction == 'incoming' %}↙{% else %}↗{% endif %}</span>
+        <span class="log-main"><strong>{{ c.number }}</strong><small>{{ c.direction|capitalize }} · {{ c.status|capitalize }}{% if c.duration %} · {{ c.duration // 60 }}m {{ c.duration % 60 }}s{% endif %}</small></span>
+        <span class="log-time">{{ c.time_label }}</span>
+      </div>
+      {% if c.recording_url %}<audio class="dn-audio member-audio" controls preload="none" src="{{ c.recording_url }}" aria-label="{{ 'Voicemail' if c.recording_kind == 'voicemail' else 'Recording' }} for {{ c.number }}"></audio>{% endif %}
+    {% endfor %}
+    {% else %}<p class="empty-note">No calls yet.</p>{% endif %}
+  </section>
+  <section class="panel">
+    <h2>Recordings &amp; voicemails</h2>
+    {% if recordings %}
+    <div class="stack">
+    {% for r in recordings %}
+      <div class="media-row member-media">
+        <div class="media-meta"><strong>{{ r.contact_name or r.number }}</strong><p class="muted">{{ r.date_label }} · {{ r.time_label }} · {{ r.duration }}s</p></div>
+        <audio controls preload="none" src="{{ r.url }}"></audio>
+      </div>
+    {% endfor %}
+    </div>
+    {% else %}<p class="empty-note">No recordings yet.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}

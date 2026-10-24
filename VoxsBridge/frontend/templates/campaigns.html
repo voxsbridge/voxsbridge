@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Campaigns — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div><h1>Campaigns</h1><p class="muted">Manage campaigns and dial them from the side pad.</p></div>
+    {% if premium %}<button type="button" class="btn-blue" onclick="newCampaign()">+ New Campaign</button>{% endif %}
+</div>
+<div class="mini-stats">
+    <div class="panel mini"><b>{{ campaigns|length if premium else 0 }}</b><span>Total</span></div>
+    <div class="panel mini"><b>{{ campaigns|selectattr('status','equalto','active')|list|length if premium else 0 }}</b><span>Active</span></div>
+    <div class="panel mini"><b>0</b><span>Paused</span></div>
+    <div class="panel mini"><b>{{ campaigns|selectattr('status','equalto','completed')|list|length if premium else 0 }}</b><span>Completed</span></div>
+</div>
+{% if not premium %}
+<div class="center-card">
+    <div class="warn-ico">🔒</div>
+    <h2>Upgrade Required</h2>
+    <p>Campaigns are part of the $25 upgrade, together with call recording. Ask your admin to unlock this account.</p>
+</div>
+{% elif campaigns %}
+<div class="stack">
+    {% for c in campaigns %}
+    <div class="panel row-card"><div><strong>{{ c.name }}</strong><p class="muted">{{ c.status }} · {{ c.numbers|length }} numbers</p></div></div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty-note">No campaigns yet. Create one to keep a list of numbers to dial.</p>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+async function newCampaign() {
+    const name = prompt('Campaign name');
+    if (!name) return;
+    const numbers = prompt('Numbers, separated by commas');
+    const res = await fetch('/api/campaigns', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, numbers: (numbers||'').split(',').map(s => s.trim()).filter(Boolean)})});
+    if (!res.ok) { alert('Campaigns need the $25 upgrade.'); return; }
+    location.reload();
+}
+</script>
+{% endblock %}

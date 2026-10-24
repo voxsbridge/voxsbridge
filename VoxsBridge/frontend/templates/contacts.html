@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Contacts — VoxsBridge{% endblock %}
+{% block content %}
+<div class="logs-layout">
+    <section class="panel logs-list">
+        <div class="page-head"><h1>Contacts</h1>
+            <button type="button" class="btn-blue" onclick="addContact()">+ New</button>
+        </div>
+        <div class="chips"><span class="on">All <b id="contactCount">{{ contacts|length }}</b></span></div>
+        <input type="search" id="contactSearch" class="number-display" placeholder="Search name or number" aria-label="Search contacts" style="width:100%;font-size:14px;letter-spacing:0;margin:6px 0 10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg-secondary);">
+        {% if contacts %}
+        {% for c in contacts %}
+        <div class="log-row contact-row" data-id="{{ c.id }}" data-search="{{ (c.name ~ ' ' ~ c.number)|lower }}">
+            <span class="pip blue">{{ (c.name or '?')[0]|upper }}</span>
+            <span class="contact-meta log-main"><strong>{{ c.name }}</strong><small>{{ c.number }}</small></span>
+            <span class="row-actions">
+                <a class="module-btn contact-call" href="/dialer?number={{ c.number|urlencode }}&amp;call=1" aria-label="Call {{ c.name }}">☎ Call</a>
+                <button type="button" class="icon-btn" onclick="deleteContact(this)" title="Delete contact" aria-label="Delete {{ c.name }}">🗑</button>
+            </span>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="muted" style="margin-top:28px;">No contacts yet. Click + New to add one, or save a number from Call History.</p>
+        {% endif %}
+    </section>
+    <section class="caught-up">
+        <div class="ghost">👤</div>
+        <p>Select a contact on the left, or create a new one</p>
+    </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function addContact() {
+    const name = prompt('Name');
+    if (!name) return;
+    const number = prompt('Number, with country code (e.g. +447700900123)');
+    if (!number) return;
+    const res = await fetch('/api/contacts', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, number})});
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.detail || 'Could not save contact');
+        return;
+    }
+    location.reload();
+}
+async function deleteContact(btn) {
+    const row = btn.closest('.contact-row');
+    const name = row.querySelector('strong').textContent;
+    if (!confirm('Delete contact "' + name + '"?')) return;
+    const res = await fetch('/api/contacts/' + encodeURIComponent(row.dataset.id), {method: 'DELETE'});
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.detail || 'Could not delete contact');
+        return;
+    }
+    row.remove();
+    const count = document.getElementById('contactCount');
+    count.textContent = String(document.querySelectorAll('.contact-row').length);
+}
+document.getElementById('contactSearch').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    document.querySelectorAll('.contact-row').forEach((row) => { row.hidden = !row.dataset.search.includes(q); });
+});
+</script>
+{% endblock %}

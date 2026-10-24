@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — VoxsBridge{% endblock %}
+{% block content %}
+{% set first_name = (user.name or 'there').split(' ')[0] %}
+<div class="vb-hero">
+    <div>
+        <small class="vb-hero-date" id="vbHeroDate">{% if user.role == 'admin' %}Admin console{% else %}Your calling workspace{% endif %}</small>
+        <h1><span id="vbGreeting">Welcome back</span>, {{ first_name }}</h1>
+    </div>
+    <div class="seg vb-seg">
+        <a href="/dashboard?period=today" class="{% if period == 'today' %}on{% endif %}">Today</a>
+        <a href="/dashboard?period=week" class="{% if period == 'week' %}on{% endif %}">This Week</a>
+        <a href="/dashboard?period=month" class="{% if period == 'month' %}on{% endif %}">This Month</a>
+    </div>
+</div>
+
+{% if user.role == 'admin' %}
+{# ================= ADMIN: management overview ================= #}
+<div class="vb-quick">
+    <a class="vb-qa" href="/users"><span class="vb-qi">+</span><span><b>Add User</b><small>Create a customer login</small></span></a>
+    <a class="vb-qa" href="/companies"><span class="vb-qi">▦</span><span><b>Companies</b><small>Owners, agents and numbers</small></span></a>
+    <a class="vb-qa" href="/invoices/new"><span class="vb-qi">₨</span><span><b>New Invoice</b><small>Bill a customer</small></span></a>
+</div>
+{% set s = admin_stats or {} %}
+<div class="stat-row vb-stats">
+    <div class="stat-card vb-c1"><div class="label">Customers</div><div class="value">{{ s.customers or 0 }}</div><div class="vb-sub">{{ s.demo or 0 }} on demo</div></div>
+    <div class="stat-card vb-c2"><div class="label">Active Plans</div><div class="value">{{ s.active or 0 }}</div><div class="vb-sub">{{ s.expired or 0 }} expired</div></div>
+    <div class="stat-card vb-c4"><div class="label">Companies</div><div class="value">{{ s.companies or 0 }}</div><div class="vb-sub">{{ s.resellers or 0 }} resellers</div></div>
+    <div class="stat-card vb-c3"><div class="label">Phone Numbers</div><div class="value">{{ s.numbers or 0 }}</div><div class="vb-sub">Assigned lines</div></div>
+    <div class="stat-card vb-c5"><div class="label">Platform Calls</div><div class="value">{{ s.platform_calls or 0 }}</div><div class="vb-sub">{% if period == 'today' %}Today{% elif period == 'week' %}This week{% else %}This month{% endif %}</div></div>
+</div>
+<div class="admin-revenue">
+ <div class="revenue-card"><small>This Month Earnings</small><strong>Rs. {{ "{:,}".format(revenue) }}</strong><span>Recorded payments · PKR</span></div>
+ <div class="revenue-card"><small>Renewals Due Within 7 Days</small><strong>{{ renewals|length }}</strong><span>Upcoming repayments</span></div>
+</div>
+{% if costs %}
+<section class="cost-panel" aria-labelledby="costTitle">
+ <div class="cost-panel-head">
+  <div><h2 id="costTitle">Estimated Calling Cost — All Customers</h2>
+  <p>Telnyx + Twilio charges estimated from call minutes. Rates can be changed in <a href="/settings">Settings</a>.</p></div>
+ </div>
+ <div class="cost-grid">
+  {% for key,label in [('today','Today'),('week','This Week'),('month','This Month')] %}
+  <div class="cost-cell">
+   <small>{{ label }}</small>
+   <strong>${{ '%.2f'|format(costs[key].usd) }}</strong>
+   <span>≈ Rs. {{ '{:,.0f}'.format(costs[key].pkr) }} · {{ costs[key].calls }} calls</span>
+   <span>↙ In {{ costs[key].in_min }} min · ↗ Out {{ costs[key].out_min }} min</span>
+  </div>
+  {% endfor %}
+ </div>
+</section>
+{% endif %}
+<section class="panel repayment-panel"><h2>Upcoming Repayments — Next 7 Days</h2>
+{% if renewals %}<div class="table-scroll"><table class="modern-table"><thead><tr><th>User</th><th>Renewal</th><th>Previous Amount</th><th>Record Repayment</th></tr></thead><tbody>
+{% for r in renewals %}<tr><td><strong>{{ r.name }}</strong><small>{{ r.email }}</small></td><td>{{ r.renewal }} ({{ r.days }} days)</td><td>Rs. {{ "{:,}".format(r.amount) }}</td><td><form method="post" action="/users/repayment" class="repayment-form"><input type="hidden" name="email" value="{{ r.email }}"><input type="number" name="amount" min="1" value="{{ r.amount }}" required aria-label="Repayment amount PKR"><button class="btn btn-primary" type="submit">Mark as Paid (+30 days)</button></form></td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="empty-note">No renewals due in the next 7 days.</p>{% endif %}
+</section>
+
+{% else %}
+{# ================= CUSTOMER / AGENT: calling dashboard ================= #}
+<div class="vb-quick">
+    <button type="button" class="vb-qa" id="vbQuickCall"><span class="vb-qi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg></span><span><b>New Call</b><small>Open the keypad</small></span></button>
+    <a class="vb-qa" href="/power-dialer"><span class="vb-qi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg></span><span><b>Start Power Dialer</b><small>Call a lead list back-to-back</small></span></a>
+    <a class="vb-qa" href="/crm"><span class="vb-qi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span><span><b>Import Leads</b><small>Add leads to your CRM</small></span></a>
+</div>
+<div class="stat-row vb-stats">
+    <div class="stat-card vb-c1"><div class="label">Total Calls</div><div class="value">{{ total_calls }}</div><div class="vb-sub">{% if period == 'today' %}Today{% elif period == 'week' %}This week{% else %}This month{% endif %}</div></div>
+    <div class="stat-card vb-c2"><div class="label">Answer Rate</div><div class="value">{{ answer_rate }}</div><div class="vb-sub">{{ answered_calls }} answered</div></div>
+    <div class="stat-card vb-c3"><div class="label">Avg Talk Time</div><div class="value">{{ avg_talk_time }}</div><div class="vb-sub">Per connected call</div></div>
+    <div class="stat-card vb-c4"><div class="label">Contacts</div><div class="value">{{ contacts_count }}</div><div class="vb-sub">Saved contacts</div></div>
+    <div class="stat-card vb-c5"><div class="label">Recordings</div><div class="value">{{ recordings_count }}</div><div class="vb-sub">Saved calls</div></div>
+</div>
+<div class="split-2">
+    <section class="panel">
+        <h2 class="vb-panel-title">Calls Over Time <span>{% if period == 'today' %}Today · every 3 hours{% elif period == 'week' %}This week · daily{% else %}This month · 5-day blocks{% endif %}</span></h2>
+        <div class="dial-chart" role="img" aria-label="Calls by time interval">
+          <div class="dial-chart-bars">
+            {% for item in chart_bars %}
+            <div class="dial-chart-col" title="{{ item.label }}: {{ item.count }} calls">
+              <div class="dial-chart-track">
+                <div class="dial-chart-bar-group" style="height:{{ item.height }}%">
+                  {% if item.count %}<div class="dial-chart-value">{{ item.count }}</div>{% endif %}
+                  <div class="dial-chart-fill{% if not item.count %} is-zero{% endif %}"></div>
+                </div>
+              </div>
+              <div class="dial-chart-label">{{ item.label }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+    </section>
+    <section class="panel">
+        <h2 class="vb-panel-title">Call Outcomes</h2>
+        {% set total = total_calls or 1 %}
+        {% set ans_pct = (answered_calls * 100 // total) if total_calls else 0 %}
+        {% set fail_pct = (failed_calls * 100 // total) if total_calls else 0 %}
+        <div class="meter"><span class="dot green"></span> Connected <b>{{ answered_calls }} · {{ ans_pct }}%</b></div>
+        <div class="track"><i class="green" style="width:{{ ans_pct }}%"></i></div>
+        <div class="meter"><span class="dot red"></span> Not connected <b>{{ failed_calls }} · {{ fail_pct }}%</b></div>
+        <div class="track"><i class="red" style="width:{{ fail_pct }}%"></i></div>
+        <div class="tip vb-tip">
+            {% if not total_calls %}
+            <strong>No calls yet</strong>
+            <p>Start with the keypad or launch the Power Dialer on a lead list.</p>
+            {% elif ans_pct < 30 %}
+            <strong>Low connect rate</strong>
+            <p>Try calling at different times of day and use local numbers for each country.</p>
+            {% else %}
+            <strong>You're on track</strong>
+            <p>Nothing stands out for this period. Keep the calls consistent.</p>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  var h=new Date().getHours(), g=document.getElementById('vbGreeting'), d=document.getElementById('vbHeroDate');
+  if(g) g.textContent = h<12 ? 'Good morning' : h<17 ? 'Good afternoon' : 'Good evening';
+  if(d) d.textContent = new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'}) + ' · ' + d.textContent;
+  var q=document.getElementById('vbQuickCall');
+  if(q) q.addEventListener('click',function(){
+    try{window.dispatchEvent(new CustomEvent('voxsbridge:show-dialer'))}catch(e){}
+    var i=document.getElementById('numberInput'); if(i){ i.focus(); }
+  });
+})();
+</script>
+{% endblock %}

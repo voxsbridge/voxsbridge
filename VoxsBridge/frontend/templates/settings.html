@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Settings — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Settings</h1><p class="muted">Account details for this login.</p></div></div>
+<section class="panel" style="max-width:520px;">
+    <p><span class="muted">Name</span><br><strong>{{ user.name }}</strong></p>
+    <p style="margin-top:12px;"><span class="muted">Email</span><br><strong>{{ user.email }}</strong></p>
+    <p style="margin-top:12px;"><span class="muted">Caller ID</span><br><strong>{{ user.phone_number }}</strong></p>
+    <p style="margin-top:12px;"><span class="muted">Plan renewal</span><br><strong>{{ plan.plan_renewal }}</strong> · {{ plan.days_left }} days left</p>
+    <p style="margin-top:18px;"><a href="/logout" class="btn-blue">Log out</a></p>
+</section>
+{% if user.role == 'admin' %}
+<section class="panel" style="max-width:720px;margin-top:18px;">
+    <h2>Provider Rates (for estimated cost)</h2>
+    <p class="muted" style="margin-bottom:14px">USD per minute. Each call is rounded up to whole minutes. Check your Telnyx and Twilio pricing pages for the countries you call most.</p>
+    {% if saved %}<div class="success-msg">Rates saved.</div>{% endif %}
+    <form method="post" action="/settings/rates" class="rates-form">
+        <label>Telnyx — outgoing ($/min)<input type="number" name="telnyx_out" step="0.0001" min="0" max="5" value="{{ rates.telnyx_out }}" required></label>
+        <label>Telnyx — incoming ($/min)<input type="number" name="telnyx_in" step="0.0001" min="0" max="5" value="{{ rates.telnyx_in }}" required></label>
+        <label>Twilio — outgoing ($/min)<input type="number" name="twilio_out" step="0.0001" min="0" max="5" value="{{ rates.twilio_out }}" required></label>
+        <label>Twilio — incoming ($/min)<input type="number" name="twilio_in" step="0.0001" min="0" max="5" value="{{ rates.twilio_in }}" required></label>
+        <label>1 USD = PKR<input type="number" name="usd_to_pkr" step="0.01" min="1" max="1000" value="{{ rates.usd_to_pkr }}" required></label>
+        <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" type="submit">Save Rates</button></div>
+    </form>
+</section>
+<section class="panel" style="max-width:720px;margin-top:18px;">
+    <h2>System Status</h2>
+    <div class="dn-detail"><span>Twilio backup provider</span><strong>{% if twilio_ready %}<span class="dn-pill ok">Configured</span>{% else %}<span class="dn-pill warn">Not configured</span>{% endif %}</strong></div>
+    <div class="dn-detail"><span>Recording storage</span><strong>{{ storage_mode }}</strong></div>
+    <div class="dn-detail"><span>Public URL for webhooks</span><strong>{{ public_base_url }}</strong></div>
+</section>
+{% endif %}
+{% endblock %}

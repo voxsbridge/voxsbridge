@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Call History — VoxsBridge{% endblock %}
+{% block content %}
+<div class="logs-layout">
+<section class="panel logs-list">
+<div class="page-head"><h1>Call History</h1></div>
+<p class="muted">Click any call to see its details, save the number or delete it.</p>
+<div class="chips">
+{% for key,label in [('all','All Calls'),('incoming','Incoming'),('outgoing','Outgoing'),('missed','Missed')] %}
+<a href="/call-logs?filter={{ key }}" class="{% if selected == key %}on{% endif %}" >{{ label }} {{ counts[key] }}</a>
+{% endfor %}
+</div>
+{% if logs %}
+{% set ns = namespace(day='') %}
+{% for log in logs %}
+{% if log.date_label != ns.day %}{% set ns.day = log.date_label %}<div class="log-group">{{ log.date_label }}</div>{% endif %}
+{% set label = log.contact_name or (log.number if log.number else 'Private Number') %}
+<div class="log-row clickable" tabindex="0" role="button" data-log='{{ log|tojson|forceescape }}' aria-label="Call details for {{ label }}">
+<span class="pip {% if log.status in ['answered','completed','active'] %}green{% else %}red{% endif %}">{% if log.direction == 'incoming' %}↙{% else %}↗{% endif %}</span>
+<span class="log-main">
+<strong>{{ label }}</strong>
+<small>{% if log.contact_name %}{{ log.number }} · {% endif %}{{ (log.direction or 'unknown')|capitalize }} · {{ (log.status or 'unknown')|replace('_',' ')|capitalize }}{% if log.duration %} · {{ log.duration // 60 }}m {{ log.duration % 60 }}s{% endif %}{% if log.recording_kind == 'voicemail' %} · Voicemail{% elif log.recording_id %} · Recorded{% endif %}</small>
+</span>
+<span class="log-time">{{ log.time_label }}</span>
+</div>
+{% endfor %}
+{% else %}<p class="muted" style="margin-top:24px;">No calls in this filter.</p>{% endif %}
+</section>
+<section class="caught-up"><h2>Hello, {{ user.name.split(' ')[0] }}</h2><p>Select a call to see its details</p></section>
+</div>
+
+<div class="dn-overlay" id="logOverlay" hidden></div>
+<aside class="dn-drawer" id="logDrawer" role="dialog" aria-modal="true" aria-labelledby="logTitle" aria-hidden="true">
+  <div class="dn-drawer-head">
+    <div><h2 id="logTitle">Call details</h2><p id="logSubtitle"></p></div>
+    <button type="button" class="dn-close" id="logClose" aria-label="Close">✕</button>
+  </div>
+  <div class="dn-drawer-body">
+    <div class="dn-detail"><span>Number</span><strong id="dNumber"></strong></div>
+    <div class="dn-detail"><span>Contact</span><strong id="dContact"></strong></div>
+    <div class="dn-detail"><span>Direction</span><strong id="dDirection"></strong></div>
+    <div class="dn-detail"><span>Status</span><strong id="dStatus"></strong></div>
+    <div class="dn-detail"><span>Date &amp; time</span><strong id="dTime"></strong></div>
+    <div class="dn-detail"><span>Duration</span><strong id="dDuration"></strong></div>
+    <div class="dn-detail"><span>From</span><strong id="dFrom"></strong></div>
+    <div class="dn-detail"><span>To</span><strong id="dTo"></strong></div>
+    {% if show_cost %}
+    <div class="dn-detail"><span>Provider</span><strong id="dProvider"></strong></div>
+    <div class="dn-detail"><span>Estimated cost</span><strong id="dCost"></strong></div>
+    {% endif %}
+    <div id="dAudioWrap" hidden>
+      <p class="muted" style="margin-top:16px" id="dAudioLabel">Recording</p>
+      <audio class="dn-audio" id="dAudio" controls preload="none"></audio>
+    </div>
+    <div class="dn-actions">
+      <a class="dn-btn primary" id="dCall" href="#">☎ Call back</a>
+      <button type="button" class="dn-btn" id="dSave">＋ Save contact</button>
+      <button type="button" class="dn-btn" id="dCopy">⧉ Copy number</button>
+      <button type="button" class="dn-btn danger" id="dDelete">🗑 Delete log</button>
+    </div>
+  </div>
+</aside>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const drawer = document.getElementById('logDrawer');
+  const overlay = document.getElementById('logOverlay');
+  const audio = document.getElementById('dAudio');
+  let current = null;
+  let currentRow = null;
+  const $ = (id) => document.getElementById(id);
+  function toast(msg) {
+    const t = document.createElement('div');
+    t.className = 'dn-toast'; t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2600);
+  }
+  function fmtDuration(sec) {
+    sec = Number(sec || 0);
+    if (!sec) return '0s';
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return (m ? m + 'm ' : '') + s + 's';
+  }
+  function cap(v) { v = String(v || '').replace(/_/g, ' '); return v.charAt(0).toUpperCase() + v.slice(1); }
+  function dialable(n) { return /^\+[1-9]\d{6,14}$/.test(n || ''); }
+  function open(row) {
+    current = JSON.parse(row.dataset.log);
+    currentRow = row;
+    const number = current.number || '';
+    $('logTitle').textContent = current.contact_name || number || 'Private Number';
+    $('logSubtitle').textContent = current.full_time;
+    $('dNumber').textContent = number || 'Private Number';
+    $('dContact').textContent = current.contact_name || 'Not saved';
+    $('dDirection').textContent = cap(current.direction);
+    $('dStatus').textContent = cap(current.status);
+    $('dTime').textContent = current.full_time;
+    $('dDuration').textContent = fmtDuration(current.duration);
+    $('dFrom').textContent = current.from_number || '—';
+    $('dTo').textContent = current.to_number || '—';
+    if ($('dProvider')) $('dProvider').textContent = cap(current.provider);
+    if ($('dCost')) $('dCost').textContent = '$' + Number(current.cost_usd || 0).toFixed(4);
+    if (current.recording_id) {
+      $('dAudioWrap').hidden = false;
+      $('dAudioLabel').textContent = current.recording_kind === 'voicemail' ? 'Voicemail' : 'Call recording';
+      audio.src = '/recordings/' + encodeURIComponent(current.recording_id) + '/audio';
+    } else {
+      $('dAudioWrap').hidden = true;
+      audio.removeAttribute('src');
+    }
+    const call = $('dCall');
+    if (dialable(number)) { call.href = '/dialer?number=' + encodeURIComponent(number) + '&call=1'; call.removeAttribute('aria-disabled'); call.style.pointerEvents = ''; call.style.opacity = ''; }
+    else { call.href = '#'; call.setAttribute('aria-disabled', 'true'); call.style.pointerEvents = 'none'; call.style.opacity = '.5'; }
+    $('dSave').disabled = !number;
+    $('dSave').textContent = current.contact_name ? '✎ Rename contact' : '＋ Save contact';
+    $('dCopy').disabled = !number;
+    overlay.hidden = false;
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    $('logClose').focus();
+  }
+  function close() {
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    overlay.hidden = true;
+    audio.pause();
+    if (currentRow) currentRow.focus();
+  }
+  document.querySelectorAll('.log-row.clickable').forEach((row) => {
+    row.addEventListener('click', () => open(row));
+    row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(row); } });
+  });
+  $('logClose').addEventListener('click', close);
+  overlay.addEventListener('click', close);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawer.classList.contains('open')) close(); });
+  $('dCopy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(current.number); toast('Number copied'); }
+    catch (err) { toast('Copy not allowed by the browser'); }
+  });
+  $('dSave').addEventListener('click', async () => {
+    const name = prompt('Contact name for ' + current.number, current.contact_name || '');
+    if (!name || !name.trim()) return;
+    const res = await fetch('/api/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), number: current.number }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(data.detail || 'Could not save contact'); return; }
+    toast(data.updated ? 'Contact updated' : 'Contact saved');
+    setTimeout(() => location.reload(), 700);
+  });
+  $('dDelete').addEventListener('click', async () => {
+    if (!confirm('Delete this call from your call log? This cannot be undone.')) return;
+    const res = await fetch('/api/call-log/' + encodeURIComponent(current.id), { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(data.detail || 'Could not delete'); return; }
+    close();
+    currentRow.remove();
+    toast('Call deleted');
+  });
+})();
+</script>
+{% endblock %}
