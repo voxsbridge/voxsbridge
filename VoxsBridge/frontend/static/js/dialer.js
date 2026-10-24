@@ -814,6 +814,11 @@ function hangup() {
     let ringTimer = null;
     function startRing() {
         stopRing();
+        // WhatsApp-style alert: floating call card + desktop notification.
+        if (window.VBCallAlert) {
+            const n = document.getElementById('incomingNumber');
+            window.VBCallAlert.show(n ? n.textContent.trim() : '');
+        }
         if (window.VoxsBridgeRing) {           // ringtone chosen in Calling Preferences
             window._ringStop = window.VoxsBridgeRing.start(cfg.dataset.ringtone, Number(cfg.dataset.ringvol || 70));
             return;
@@ -836,6 +841,7 @@ function hangup() {
         window._ringCtx = ctx;
     }
     function stopRing() {
+        if (window.VBCallAlert) window.VBCallAlert.hide();
         if (window._ringStop) { try { window._ringStop(); } catch (e) {} window._ringStop = null; }
         if (ringTimer) clearInterval(ringTimer);
         ringTimer = null;
