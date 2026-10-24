@@ -16,6 +16,7 @@ const input = document.getElementById('numberInput');
     let incomingGroupId = null;
     let incomingLookup = null;
     let declinedIncomingIds = new Set();
+    const declinedGroupIds = new Set();   // incoming calls the user already declined
     let incomingSequence = 0;
     let placing = false;
     let heldCall = null;
@@ -863,6 +864,11 @@ function hangup() {
         incomingLookup = lookupIncomingGroup();
         incomingLookup.then(group => {
             if (sequence !== incomingSequence || !group) return;
+            if (declinedGroupIds.has(String(group.id))) {
+                // Same call the user already declined: silently refuse the re-offer.
+                if (call.id) declinedIncomingIds.add(call.id);
+                return;
+            }
             if (localStorage.getItem('voxsbridge-dnd') === 'true') {
                 // Do not create a repeated browser SIP BYE loop here.
                 return;
@@ -900,7 +906,7 @@ function hangup() {
         muted = false;
         activeCall = call;
         const num = callerOf(call);
-        if (num && num !== 'Unknown') input.value = num;
+        if (num && /^\+?\d[\d\s()-]{5,}$/.test(num)) input.value = num;
         try { call.answer(); } catch (err) {
             setStatus(err.message || 'Could not answer', 'var(--danger)');
         }
@@ -924,6 +930,8 @@ function hangup() {
         }
         if (!call || !groupId) return;
         stopRing();
+        declinedGroupIds.add(String(groupId));
+        if (call.id) declinedIncomingIds.add(call.id);
         setStatus('Declining incoming call...');
         try {
             const res = await fetch('/api/incoming-groups/' + encodeURIComponent(groupId) + '/decline', {
@@ -942,8 +950,9 @@ function hangup() {
             incomingLookup = null;
             showDialPad();
             rtcStatus.textContent = 'Ready';
-            setStatus('Decline requested; awaiting carrier termination');
+            setStatus('Call declined');
         } catch (err) {
+            declinedGroupIds.delete(String(groupId));
             console.error('Incoming decline error:', err);
             setStatus('Decline failed: ' + err.message, 'var(--danger)');
             // Keep the incoming call visible so the user can retry.
