@@ -248,6 +248,7 @@ def load_users():
         refresh_users()
 
 SCHEMA_SQL = """
+ALTER TABLE public.incoming_call_groups ADD COLUMN IF NOT EXISTS ring_call_id text;
 ALTER TABLE public.voxsbridge_users ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'telnyx';
 ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'telnyx';
 ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS provider_call_id text;
@@ -2254,7 +2255,7 @@ async def telnyx_webhook(request: Request, background: BackgroundTasks):
                 sip_username = (ring_user or {}).get("sip_username", "")
                 if sip_username and TELNYX_API_KEY and os.getenv("TELNYX_VOICE_APP_ID"):
                     try:
-                        _telnyx_request("POST", "/v2/calls", {
+                        ring_resp = _telnyx_request("POST", "/v2/calls", {
                             "connection_id": os.environ["TELNYX_VOICE_APP_ID"],
                             "to": f"sip:{sip_username}@sip.telnyx.com",
                             "from": origin or destination,
@@ -2266,6 +2267,17 @@ async def telnyx_webhook(request: Request, background: BackgroundTasks):
                             "command_id": str(group_id),
                             "client_state": _cs_encode(f"ring:{group_id}"),
                         })
+                        # Remember the browser leg so Decline can stop it too
+                        # (otherwise Telnyx keeps re-offering it for up to 30 s).
+                        ring_id = ((ring_resp or {}).get("data") or {}).get("call_control_id")
+                        if ring_id:
+                            try:
+                                with db_connect() as conn:
+                                    with conn.cursor() as cur:
+                                        cur.execute("UPDATE public.incoming_call_groups SET ring_call_id=%s WHERE id=%s",
+                                                    (ring_id, group_id))
+                            except Exception:
+                                log.exception("Could not store ring leg for group %s", group_id)
                     except Exception:
                         # Do not expose provider credentials or error bodies in responses.
                         log.exception("Inbound SIP dial failed for call group %s", group_id)
@@ -3416,7 +3428,7 @@ async def decline_incoming_group(group_id: uuid.UUID, request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     with db_connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("""SELECT g.telnyx_call_id, g.status
+            cur.execute("""SELECT g.telnyx_call_id, g.status, g.ring_call_id
                 FROM public.incoming_call_groups g
                 JOIN public.call_participants p ON p.group_id=g.id
                 JOIN public.voxsbridge_users u ON u.id=p.user_id
@@ -3433,6 +3445,9 @@ async def decline_incoming_group(group_id: uuid.UUID, request: Request):
         import logging
         logging.exception("Carrier decline failed for incoming group %s", group_id)
         raise HTTPException(status_code=502, detail="Carrier hangup request failed")
+    # Also stop the leg that rings the browser so it is not offered again.
+    if group.get("ring_call_id"):
+        _telnyx_hangup_quietly(group["ring_call_id"])
     with db_connect() as conn:
         with conn.cursor() as cur:
             cur.execute("""UPDATE public.incoming_call_groups
