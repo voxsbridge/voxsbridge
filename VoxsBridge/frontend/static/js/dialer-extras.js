@@ -21,12 +21,59 @@
     const hint = document.getElementById('pnHint');
     const clear = document.getElementById('pnClear');
     const field = input && input.closest('.pn-field');
+    const cfgEl = document.getElementById('dialerConfig');
+    const FROM = (cfgEl && cfgEl.dataset.from) || '';
 
-    function detect(value) {
-        const digits = String(value || '').replace(/[^\d+]/g, '');
-        if (!digits.startsWith('+')) return null;
-        const body = digits.slice(1);
-        return COUNTRIES.find(([code]) => body.startsWith(code)) || null;
+    // Country of a full +E.164 number (longest matching code wins).
+    function countryOf(e164) {
+        const d = String(e164 || '').replace(/[^\d+]/g, '');
+        if (!d.startsWith('+')) return null;
+        return COUNTRIES.find(([code]) => d.slice(1).startsWith(code)) || null;
+    }
+    // The user's own line decides the default country (US number -> +1, UK -> +44).
+    const HOME = countryOf(FROM);
+
+    /* Turn what the user typed into +E.164.
+     *  "+44 7476 629105" / "0044..." -> kept as international
+     *  UK line: "07476629105" or "7476629105" -> +447476629105
+     *  US line: "2522514083" or "12522514083" -> +12522514083 */
+    function toE164(raw) {
+        let v = String(raw || '').trim();
+        if (!v) return '';
+        if (v.startsWith('+')) return '+' + v.replace(/\D/g, '');
+        let d = v.replace(/\D/g, '');
+        if (d.startsWith('00')) return '+' + d.slice(2);
+        if (!HOME) return '+' + d;
+        const code = HOME[0];
+        if (code === '1') return d.length === 11 && d.startsWith('1') ? '+' + d : '+1' + d;
+        // Already typed with the country code but without "+" (e.g. 447476629105).
+        if (d.startsWith(code) && d.length >= code.length + 9) return '+' + d;
+        if (code !== '39') d = d.replace(/^0/, '');   // drop the national trunk 0 (Italy keeps it)
+        return '+' + code + d;
+    }
+    // Readable form for display: +1 910 242 0131 / +44 7476 629105
+    function pretty(e164) {
+        const d = String(e164 || '').replace(/\D/g, '');
+        const c = countryOf('+' + d);
+        if (!c) return e164 || '';
+        const rest = d.slice(c[0].length);
+        if (c[0] === '1' && rest.length === 10) return '+1 ' + rest.slice(0, 3) + ' ' + rest.slice(3, 6) + ' ' + rest.slice(6);
+        if (rest.length > 6) return '+' + c[0] + ' ' + rest.slice(0, rest.length - 6) + ' ' + rest.slice(-6);
+        return '+' + c[0] + ' ' + rest;
+    }
+    window.VBNumber = { toE164, pretty, home: HOME };
+
+    // Show the caller's own number in a readable way.
+    document.querySelectorAll('.rail-own-number').forEach((n) => {
+        if (n.textContent.trim().startsWith('+')) n.textContent = pretty(n.textContent.trim());
+    });
+    // No flag/country badge in the number box any more.
+    if (cc) cc.hidden = true;
+    if (field) field.classList.add('pn-noflag');
+
+    function defaultHint() {
+        if (!HOME) return 'Enter the number with its country code, e.g. +44';
+        return 'Type the number — +' + HOME[0] + ' is added automatically';
     }
     let last = null;
     function refresh() {
@@ -34,22 +81,19 @@
         const value = input.value;
         if (value === last) return;
         last = value;
-        const found = detect(value);
-        if (cc) cc.textContent = found ? found[1] : '+';
-        if (field) field.classList.toggle('has-country', !!found);
         if (hint) {
-            if (!value) hint.textContent = 'Add the country code, e.g. +44';
-            else if (found) hint.textContent = found[2] + ' · +' + found[0];
-            else if (!value.trim().startsWith('+')) hint.textContent = 'Tip: start with + and the country code';
-            else hint.textContent = 'Country code not recognised — check the number';
+            if (!value) hint.textContent = defaultHint();
+            else if (value.trim().startsWith('+') || value.trim().startsWith('00')) hint.textContent = 'International: ' + pretty(toE164(value));
+            else hint.textContent = 'Will call ' + pretty(toE164(value));
         }
         if (clear) clear.hidden = !value;
         const paste = document.getElementById('dialPasteButton');
         if (paste) paste.hidden = !!value;
         const len = value.replace(/\s/g, '').length;      // shrink long numbers so they fit
-        if (field) { field.classList.toggle('pn-long', len > 9); field.classList.toggle('pn-xlong', len > 12); }
+        if (field) { field.classList.toggle('pn-long', len > 10); field.classList.toggle('pn-xlong', len > 13); }
     }
     if (input) {
+        input.placeholder = HOME && HOME[0] === '1' ? 'e.g. 252 251 4083' : (HOME ? 'Enter number' : 'Enter number');
         input.addEventListener('input', refresh);
         // The keypad, paste and "Call" links set the value from code, so watch it too.
         setInterval(refresh, 250);

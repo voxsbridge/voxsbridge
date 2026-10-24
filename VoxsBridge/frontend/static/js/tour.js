@@ -4,7 +4,7 @@
     const STEPS = [
         { sel: '.dial-rail .your-number', title: 'Your number', text: 'This is the number people see when you call them (your Caller ID).' },
         { sel: '#rtcStatus', title: 'Line status', text: '"Ready" in green means you can make and receive calls. If it says "Connecting", wait a moment.' },
-        { sel: '.pn-field', title: 'Number box', text: 'Type or paste the number with its country code, e.g. +44 7700 900123. The country is shown automatically.' },
+        { sel: '.pn-field', title: 'Number box', text: 'Type the number without the country code — it is added from your own line (US line adds +1, UK line adds +44). For another country start with + and its code.' },
         { sel: '#dialPasteButton', title: 'Paste', text: 'Pastes a number you copied from anywhere (WhatsApp, email, a website).' },
         { sel: '#dialPad', title: 'Keypad', text: 'Tap the numbers to dial. Press and hold 0 to type +.' },
         { sel: '#callBtn', title: 'Call', text: 'Starts the call. You can also press Enter in the number box.' },
