@@ -1545,3 +1545,8 @@ body.light-theme .vb-callcard { background:rgba(255,255,255,.97); color:#0b1633;
 .pn-field.pn-noflag.pn-xlong #numberInput { font-size:15px !important; letter-spacing:0 !important; }
 .pn-hint { text-align:center; }
 .vb .dial-rail .rail-own-number { letter-spacing:.03em; }
+/* Keep the dialer the same width while typing (the hint text used to resize it) */
+.dial-rail #padBody { width:100%; align-self:stretch; display:flex; flex-direction:column; align-items:center; }
+.dial-rail #padBody[hidden] { display:none !important; }
+.dial-rail #padBody .dial-input-row, .dial-rail #padBody .pn-hint { width:100%; }
+.dial-rail .pn-hint { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
