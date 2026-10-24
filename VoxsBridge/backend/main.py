@@ -2066,6 +2066,13 @@ def _cs_decode(value):
     except (ValueError, TypeError):
         return ""
 
+def _telnyx_reject_declined(call_control_id):
+    """Refuse an unanswered inbound call with a final decline (SIP 603)."""
+    try:
+        _telnyx_request("POST", f"/v2/calls/{call_control_id}/actions/reject", {"cause": "CALL_REJECTED"})
+    except Exception:
+        _telnyx_hangup_quietly(call_control_id)
+
 def _telnyx_hangup_quietly(call_control_id):
     try:
         _telnyx_request("POST", f"/v2/calls/{call_control_id}/actions/hangup", {})
@@ -2222,7 +2229,17 @@ async def telnyx_webhook(request: Request, background: BackgroundTasks):
                         ON CONFLICT(telnyx_call_id) DO NOTHING RETURNING id""",
                         (call_id, origin, destination))
                     inserted = cur.fetchone()
-                    if inserted:
+                    retry_of_declined = False
+                    if inserted and origin:
+                        cur.execute("""SELECT 1 FROM public.incoming_call_groups
+                            WHERE caller_number=%s AND destination_number=%s AND status='declined'
+                              AND COALESCE(ended_at, created_at) > NOW() - INTERVAL '20 seconds'
+                            LIMIT 1""", (origin, destination))
+                        if cur.fetchone():
+                            retry_of_declined = True
+                            cur.execute("""UPDATE public.incoming_call_groups
+                                SET status='declined', ended_at=NOW() WHERE id=%s""", (inserted["id"],))
+                    if inserted and not retry_of_declined:
                         group_id = inserted["id"]
                         cur.execute("""SELECT u.id,u.email,u.sip_username,u.credential_id,
                             u.dnd_enabled,u.plan_renewal FROM public.caller_id_assignments a
@@ -2249,6 +2266,9 @@ async def telnyx_webhook(request: Request, background: BackgroundTasks):
                                     ON CONFLICT(group_id,user_id) DO NOTHING""",
                                     (group_id,recipient["id"]))
                                 ring_user = recipient
+            if retry_of_declined:
+                # Network retry of a call the user just declined: decline it again.
+                background.add_task(_telnyx_reject_declined, call_id)
             if group_id:
                 # Do not create new SIP credentials in a webhook: the user must
                 # have logged in once and obtained a WebRTC credential already.
@@ -3440,7 +3460,17 @@ async def decline_incoming_group(group_id: uuid.UUID, request: Request):
         return {"group_declined": False, "carrier_hangup_requested": False,
                 "status": group["status"]}
     try:
-        _telnyx_request("POST", f"/v2/calls/{group['telnyx_call_id']}/actions/hangup", {})
+        if group["status"] == "ringing":
+            # Unanswered call: send a final "call rejected" (SIP 603 Decline).
+            # A plain hangup can make the caller's network retry the call a few
+            # seconds later, which looked like the call "coming back".
+            try:
+                _telnyx_request("POST", f"/v2/calls/{group['telnyx_call_id']}/actions/reject",
+                                {"cause": "CALL_REJECTED"})
+            except Exception:
+                _telnyx_request("POST", f"/v2/calls/{group['telnyx_call_id']}/actions/hangup", {})
+        else:
+            _telnyx_request("POST", f"/v2/calls/{group['telnyx_call_id']}/actions/hangup", {})
     except Exception:
         import logging
         logging.exception("Carrier decline failed for incoming group %s", group_id)
