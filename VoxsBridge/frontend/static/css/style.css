@@ -1536,3 +1536,12 @@ body.light-theme .vb-callcard { background:rgba(255,255,255,.97); color:#0b1633;
 .vb-alertbar-on { border:0; border-radius:9px; padding:8px 14px; font:inherit; font-size:13px; font-weight:700; color:#fff; background:linear-gradient(135deg,#00c6ff,#2563ff); cursor:pointer; }
 .vb-alertbar-x { border:0; background:transparent; color:var(--text-muted); font-size:20px; cursor:pointer; padding:0 4px; }
 @media (max-width:1100px) { .vb-alertbar { bottom:calc(78px + env(safe-area-inset-bottom)); left:12px; } }
+
+/* Number box without country flag: full width, number always fully visible */
+.pn-cc[hidden] { display:none !important; }
+.dial-rail .pn-field.pn-noflag #numberInput { padding-left:40px !important; padding-right:40px !important; text-align:center; text-overflow:clip; }
+.pn-field.pn-noflag #numberInput { font-size:21px !important; letter-spacing:.5px !important; }
+.pn-field.pn-noflag.pn-long #numberInput { font-size:17px !important; letter-spacing:.2px !important; }
+.pn-field.pn-noflag.pn-xlong #numberInput { font-size:15px !important; letter-spacing:0 !important; }
+.pn-hint { text-align:center; }
+.vb .dial-rail .rail-own-number { letter-spacing:.03em; }
