@@ -1498,3 +1498,41 @@ body.vb.light-theme .mob-tab.on { color:var(--accent); }
 @media (min-width:1101px){ .vb .shell-nav { align-self:stretch; min-height:calc(100vh - 64px); } }
 .vb .repayment-form .btn-primary { width:auto; padding:9px 14px; font-size:13px; }
 .dial-chart-bars { padding-top:22px; }
+
+/* ===== Incoming call card (WhatsApp-style) ===== */
+.vb-callcard { position:fixed; top:18px; left:50%; z-index:5000; width:min(420px, calc(100vw - 24px));
+  display:flex; align-items:center; gap:14px; padding:14px 14px 14px 16px; border-radius:20px;
+  background:rgba(10,18,38,.96); color:#eaf1ff; border:1px solid rgba(0,198,255,.45);
+  box-shadow:0 24px 60px rgba(0,0,0,.45), 0 0 0 6px rgba(0,198,255,.08);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  transform:translate(-50%, -140%); transition:transform .28s cubic-bezier(.2,.9,.3,1.2); font-family:inherit; }
+.vb-callcard[hidden] { display:none; }
+.vb-callcard.open { transform:translate(-50%, 0); }
+body.light-theme .vb-callcard { background:rgba(255,255,255,.97); color:#0b1633; border-color:rgba(23,71,230,.35); box-shadow:0 24px 60px rgba(16,40,100,.22); }
+.vb-callcard-pulse { position:relative; width:48px; height:48px; flex:none; }
+.vb-callcard-pulse span { position:relative; z-index:1; width:48px; height:48px; border-radius:50%; display:grid; place-items:center; background:linear-gradient(135deg,#00c6ff,#2563ff); }
+.vb-callcard-pulse::before, .vb-callcard-pulse::after { content:""; position:absolute; inset:0; border-radius:50%; background:rgba(0,198,255,.45); animation:vbRipple 1.6s ease-out infinite; }
+.vb-callcard-pulse::after { animation-delay:.8s; }
+@keyframes vbRipple { from { transform:scale(1); opacity:.7; } to { transform:scale(1.9); opacity:0; } }
+.vb-callcard-info { flex:1; min-width:0; }
+.vb-callcard-info small { display:block; font-size:11.5px; font-weight:600; opacity:.7; }
+.vb-callcard-info strong { display:block; font-size:17px; font-weight:800; letter-spacing:.02em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:inherit !important; }
+.vb-callcard-actions { display:flex; gap:10px; flex:none; }
+.vb-cc-btn { width:48px; height:48px; border-radius:50%; border:0; display:grid; place-items:center; cursor:pointer; transition:transform .15s; }
+.vb-cc-btn:hover { transform:scale(1.08); }
+.vb-cc-answer { background:linear-gradient(135deg,#10d48e,#0aa874); box-shadow:0 8px 20px rgba(16,212,142,.4); animation:vbShake 1.4s ease-in-out infinite; }
+.vb-cc-decline { background:#ef4458; box-shadow:0 8px 20px rgba(239,68,88,.35); }
+@keyframes vbShake { 0%,60%,100% { transform:rotate(0); } 65% { transform:rotate(-14deg); } 75% { transform:rotate(14deg); } 85% { transform:rotate(-10deg); } 95% { transform:rotate(6deg); } }
+@media (max-width:1100px) { .vb-callcard { top:10px; } }
+
+/* "Turn on call alerts" banner */
+.vb-alertbar { position:fixed; left:16px; bottom:16px; z-index:4000; width:min(380px, calc(100vw - 32px));
+  display:flex; align-items:center; gap:10px; padding:12px 12px 12px 14px; border-radius:14px;
+  background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border); box-shadow:0 18px 45px rgba(0,0,0,.35); }
+.vb-alertbar-ico { font-size:20px; }
+.vb-alertbar-text { flex:1; min-width:0; }
+.vb-alertbar-text b { display:block; font-size:13.5px; }
+.vb-alertbar-text small { display:block; font-size:12px; color:var(--text-secondary); margin-top:2px; }
+.vb-alertbar-on { border:0; border-radius:9px; padding:8px 14px; font:inherit; font-size:13px; font-weight:700; color:#fff; background:linear-gradient(135deg,#00c6ff,#2563ff); cursor:pointer; }
+.vb-alertbar-x { border:0; background:transparent; color:var(--text-muted); font-size:20px; cursor:pointer; padding:0 4px; }
+@media (max-width:1100px) { .vb-alertbar { bottom:calc(78px + env(safe-area-inset-bottom)); left:12px; } }
