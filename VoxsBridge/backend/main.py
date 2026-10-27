@@ -189,6 +189,9 @@ def _db_user(row):
         "trial_expires_at": row["trial_expires_at"].isoformat() if row.get("trial_expires_at") else None,
         "created_at": row["created_at"].isoformat() if row["created_at"] else "",
         "amount_paid": float(row["last_paid_amount"] or 0),
+        "sms_enabled": bool(row.get("sms_enabled", False)),
+        "sms_limit": int(row.get("sms_limit") or 0),
+        "sms_used": int(row.get("sms_used") or 0),
         "last_paid_amount": float(row["last_paid_amount"] or 0),
     }
 
@@ -248,6 +251,26 @@ def load_users():
         refresh_users()
 
 SCHEMA_SQL = """
+ALTER TABLE public.voxsbridge_users ADD COLUMN IF NOT EXISTS sms_enabled boolean NOT NULL DEFAULT false;
+ALTER TABLE public.voxsbridge_users ADD COLUMN IF NOT EXISTS sms_limit integer NOT NULL DEFAULT 0;
+ALTER TABLE public.voxsbridge_users ADD COLUMN IF NOT EXISTS sms_used integer NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS public.voxsbridge_sms (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES public.voxsbridge_users(id) ON DELETE CASCADE,
+    direction text NOT NULL CHECK (direction IN ('in','out')),
+    from_number text NOT NULL DEFAULT '',
+    to_number text NOT NULL DEFAULT '',
+    body text NOT NULL DEFAULT '',
+    segments integer NOT NULL DEFAULT 1,
+    status text NOT NULL DEFAULT 'queued',
+    error text NOT NULL DEFAULT '',
+    provider_message_id text UNIQUE,
+    is_read boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS voxsbridge_sms_user_idx ON public.voxsbridge_sms(user_id, created_at DESC);
+ALTER TABLE public.voxsbridge_sms ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.voxsbridge_sms FROM anon, authenticated;
 ALTER TABLE public.incoming_call_groups ADD COLUMN IF NOT EXISTS ring_call_id text;
 ALTER TABLE public.voxsbridge_users ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'telnyx';
 ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'telnyx';
@@ -752,7 +775,7 @@ def _customer_data(email):
             cur.execute("""SELECT u.id,u.name,u.email,u.phone_number,u.provider,u.plan_name,
                 u.plan_start,u.plan_renewal,u.created_at,u.is_active,u.is_demo,
                 u.last_paid_amount,u.recording_premium,u.contact_name,u.contact_phone,
-                u.contact_address,u.customer_notes,
+                u.contact_address,u.customer_notes,u.sms_enabled,u.sms_limit,u.sms_used,
                 (SELECT count(*) FROM public.calls c WHERE c.user_id=u.id AND c.created_at >= date_trunc('month',now())) AS calls_month,
                 (SELECT COALESCE(sum(c.duration_seconds),0) FROM public.calls c WHERE c.user_id=u.id AND c.created_at >= date_trunc('month',now())) AS talk_seconds,
                 (SELECT COALESCE(sum(p.amount_pkr),0) FROM public.payments p WHERE p.user_id=u.id AND p.status='paid') AS collected,
@@ -2200,6 +2223,13 @@ async def telnyx_webhook(request: Request, background: BackgroundTasks):
     data = body.get("data") or {}
     payload = data.get("payload") or {}
     event = data.get("event_type") or ""
+    if event.startswith("message."):
+        # Messaging webhooks may also be pointed at this URL.
+        try:
+            _handle_sms_event(event, payload)
+        except Exception:
+            log.exception("SMS webhook handling failed")
+        return JSONResponse({"ok": True})
     client_state = _cs_decode(payload.get("client_state"))
     if client_state.startswith("vm:"):
         _handle_voicemail_event(event, payload, client_state[3:], background)
@@ -2613,12 +2643,296 @@ async def delete_script(request: Request, script_id: str = Form(...)):
     _save_scripts(data)
     return RedirectResponse(url="/scripts", status_code=303)
 
+# ==================== SMS (admin-enabled add-on) ====================
+# Only users the admin enables can text. Each user has a message allowance
+# (sms_limit); every SMS segment sent OR received counts against it (sms_used).
+# One message = up to 160 characters (70 if it contains Urdu/emoji etc.).
+SMS_PROFILE_ID = os.getenv("TELNYX_SMS_PROFILE_ID", "").strip()
+SMS_MAX_CHARS = 1600
+_GSM7 = set("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà")
+_GSM7_EXT = set("^{}\\[~]|€")
+
+
+_SMART_CHARS = str.maketrans({"\u2014": "-", "\u2013": "-", "\u2018": "'", "\u2019": "'",
+                              "\u201c": '"', "\u201d": '"', "\u2026": "...", "\u00a0": " ",
+                              "\u2022": "-", "\u00b4": "'", "\u02bc": "'"})
+
+
+def sms_clean(text):
+    """Swap 'smart' punctuation for plain characters so a text stays at 160 chars per message."""
+    return str(text or "").translate(_SMART_CHARS)
+
+
+def sms_segments(text):
+    """How many SMS this text uses: 160 chars = 1 (153 per part when longer);
+    texts with Urdu/emoji/other symbols: 70 chars = 1 (67 per part)."""
+    text = text or ""
+    if not text:
+        return 1
+    if all(ch in _GSM7 or ch in _GSM7_EXT for ch in text):
+        n = sum(2 if ch in _GSM7_EXT else 1 for ch in text)
+        return 1 if n <= 160 else -(-n // 153)
+    n = len(text.encode("utf-16-le")) // 2
+    return 1 if n <= 70 else -(-n // 67)
+
+
+def _sms_state(user_id):
+    with db_connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT sms_enabled, sms_limit, sms_used, phone_number,
+                COALESCE(provider,'telnyx') AS provider
+                FROM public.voxsbridge_users WHERE id=%s""", (user_id,))
+            row = cur.fetchone() or {}
+    limit = int(row.get("sms_limit") or 0)
+    used = int(row.get("sms_used") or 0)
+    return {
+        "enabled": bool(row.get("sms_enabled")),
+        "limit": limit, "used": used, "remaining": max(0, limit - used),
+        "number": row.get("phone_number") or "",
+        "line_ok": (row.get("provider") or "telnyx") == "telnyx",
+        "configured": bool(TELNYX_API_KEY),
+    }
+
+
+def _sms_user(request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if user.get("role") == "admin":
+        raise HTTPException(status_code=403, detail="Admins manage SMS from the customer page")
+    return user
+
+
+def _clean_peer(value):
+    peer = re.sub(r"[^\d+]", "", str(value or ""))
+    if not re.fullmatch(r"\+[1-9]\d{6,14}", peer):
+        raise HTTPException(status_code=422, detail="Enter the number with its country code")
+    return peer
+
+
+def _provider_error_text(exc):
+    """Readable reason without naming the carrier (white-label)."""
+    raw = str(getattr(exc, "detail", "") or exc)
+    try:
+        body = json.loads(raw[raw.index("{"):])
+        err = (body.get("errors") or [{}])[0]
+        msg = err.get("detail") or err.get("title") or ""
+    except (ValueError, TypeError, AttributeError):
+        msg = ""
+    msg = re.sub(r"(?i)telnyx", "carrier", msg)[:200]
+    return msg or "The carrier did not accept this message"
+
+
 @app.get("/messages", response_class=HTMLResponse)
 async def messages_page(request: Request):
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
-    return templates.TemplateResponse(request=request, name="messages.html", context={"user": user})
+    sms = _sms_state(user["id"])
+    return templates.TemplateResponse(request=request, name="messages.html",
+                                      context={"user": user, "sms": sms})
+
+
+@app.get("/api/sms/summary")
+async def sms_summary(request: Request):
+    user = _sms_user(request)
+    sms = _sms_state(user["id"])
+    unread = 0
+    if sms["enabled"]:
+        with db_connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT count(*) AS n FROM public.voxsbridge_sms
+                    WHERE user_id=%s AND direction='in' AND NOT is_read""", (user["id"],))
+                unread = cur.fetchone()["n"]
+    return JSONResponse({**sms, "unread": unread}, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/sms/threads")
+async def sms_threads(request: Request):
+    user = _sms_user(request)
+    with db_connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT DISTINCT ON (peer) peer, body, direction, status, created_at
+                FROM (SELECT CASE WHEN direction='out' THEN to_number ELSE from_number END AS peer,
+                             body, direction, status, created_at
+                      FROM public.voxsbridge_sms WHERE user_id=%s) t
+                ORDER BY peer, created_at DESC""", (user["id"],))
+            last = cur.fetchall()
+            cur.execute("""SELECT from_number AS peer, count(*) AS n FROM public.voxsbridge_sms
+                WHERE user_id=%s AND direction='in' AND NOT is_read GROUP BY from_number""", (user["id"],))
+            unread = {r["peer"]: r["n"] for r in cur.fetchall()}
+    threads = [{"peer": r["peer"], "last": (r["body"] or "")[:120], "direction": r["direction"],
+                "status": r["status"], "at": r["created_at"].isoformat(),
+                "unread": unread.get(r["peer"], 0)} for r in last]
+    threads.sort(key=lambda t: t["at"], reverse=True)
+    return JSONResponse({"threads": threads[:300]}, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/sms/thread")
+async def sms_thread(request: Request):
+    user = _sms_user(request)
+    peer = _clean_peer(request.query_params.get("peer"))
+    with db_connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT id, direction, body, status, error, segments, created_at
+                FROM public.voxsbridge_sms
+                WHERE user_id=%s AND (CASE WHEN direction='out' THEN to_number ELSE from_number END)=%s
+                ORDER BY created_at DESC LIMIT 300""", (user["id"], peer))
+            rows = cur.fetchall()
+            cur.execute("""UPDATE public.voxsbridge_sms SET is_read=TRUE
+                WHERE user_id=%s AND direction='in' AND from_number=%s AND NOT is_read""", (user["id"], peer))
+    messages = [{"id": str(r["id"]), "direction": r["direction"], "body": r["body"], "status": r["status"],
+                 "error": r["error"] or "", "segments": r["segments"], "at": r["created_at"].isoformat()}
+                for r in reversed(rows)]
+    return JSONResponse({"peer": peer, "messages": messages}, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/sms/send")
+async def sms_send(request: Request):
+    user = _sms_user(request)
+    data = await request.json()
+    to = _clean_peer(data.get("to"))
+    text = sms_clean(str(data.get("text") or "").replace("\r\n", "\n")).strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="Type a message first")
+    if len(text) > SMS_MAX_CHARS:
+        raise HTTPException(status_code=422, detail=f"Message is too long (max {SMS_MAX_CHARS} characters)")
+    sms = _sms_state(user["id"])
+    if not sms["enabled"]:
+        raise HTTPException(status_code=403, detail="Texting is not enabled for your account")
+    if not sms["number"] or not sms["line_ok"]:
+        raise HTTPException(status_code=403, detail="Your line cannot send text messages yet. Contact support.")
+    if not sms["configured"]:
+        raise HTTPException(status_code=503, detail="Texting is not configured yet. Contact support.")
+    if to == sms["number"]:
+        raise HTTPException(status_code=422, detail="You cannot text your own number")
+    parts = sms_segments(text)
+    # Reserve the allowance atomically so two tabs cannot go over the limit.
+    with db_connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""UPDATE public.voxsbridge_users SET sms_used = sms_used + %s
+                WHERE id=%s AND sms_enabled AND sms_used + %s <= sms_limit
+                RETURNING sms_used, sms_limit""", (parts, user["id"], parts))
+            reserved = cur.fetchone()
+    if not reserved:
+        left = sms["remaining"]
+        raise HTTPException(status_code=402, detail=(
+            f"Message limit reached. This text needs {parts} message{'s' if parts > 1 else ''} "
+            f"and you have {left} left. Contact support to add more."))
+    body = {"from": sms["number"], "to": to, "text": text}
+    if SMS_PROFILE_ID:
+        body["messaging_profile_id"] = SMS_PROFILE_ID
+    try:
+        resp = _telnyx_request("POST", "/v2/messages", body)
+    except Exception as exc:
+        with db_connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE public.voxsbridge_users SET sms_used = GREATEST(0, sms_used - %s) WHERE id=%s",
+                            (parts, user["id"]))
+        log.warning("SMS send failed for user %s: %s", user["id"], exc)
+        raise HTTPException(status_code=502, detail="Message not sent: " + _provider_error_text(exc))
+    msg = (resp or {}).get("data") or {}
+    status = ((msg.get("to") or [{}])[0] or {}).get("status") or "queued"
+    with db_connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO public.voxsbridge_sms
+                (user_id, direction, from_number, to_number, body, segments, status, provider_message_id, is_read)
+                VALUES (%s,'out',%s,%s,%s,%s,%s,%s,TRUE)
+                ON CONFLICT (provider_message_id) DO NOTHING
+                RETURNING id, created_at""",
+                (user["id"], sms["number"], to, text, parts, status, msg.get("id")))
+            row = cur.fetchone()
+    return {"ok": True, "segments": parts, "remaining": max(0, reserved["sms_limit"] - reserved["sms_used"]),
+            "message": {"id": str(row["id"]) if row else "", "direction": "out", "body": text,
+                        "status": status, "error": "", "segments": parts,
+                        "at": (row["created_at"] if row else datetime.now(timezone.utc)).isoformat()}}
+
+
+def _handle_sms_event(event, payload):
+    """Telnyx messaging webhooks: inbound texts and delivery updates."""
+    msg_id = payload.get("id")
+    if event == "message.received":
+        sender = ((payload.get("from") or {}).get("phone_number") or "").strip()
+        to_list = payload.get("to") or []
+        dest = ((to_list[0] if to_list else {}) or {}).get("phone_number", "").strip()
+        text = str(payload.get("text") or "")[:SMS_MAX_CHARS * 2]
+        media = payload.get("media") or []
+        if media and not text:
+            text = "[Picture/MMS message]"
+        try:
+            parts = int(payload.get("parts") or 0) or sms_segments(text)
+        except (TypeError, ValueError):
+            parts = sms_segments(text)
+        if not dest or not msg_id:
+            return
+        with db_connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT u.id FROM public.voxsbridge_users u
+                    LEFT JOIN public.caller_id_assignments a ON a.user_id=u.id
+                    WHERE (a.phone_number=%s OR u.phone_number=%s) AND u.is_active AND u.sms_enabled
+                    ORDER BY (u.phone_number=%s) DESC LIMIT 1""", (dest, dest, dest))
+                owner = cur.fetchone()
+                if not owner:
+                    log.info("Inbound SMS to %s ignored: no SMS-enabled user", dest)
+                    return
+                cur.execute("""INSERT INTO public.voxsbridge_sms
+                    (user_id, direction, from_number, to_number, body, segments, status, provider_message_id)
+                    VALUES (%s,'in',%s,%s,%s,%s,'received',%s)
+                    ON CONFLICT (provider_message_id) DO NOTHING RETURNING id""",
+                    (owner["id"], sender or "Unknown", dest, text, parts, msg_id))
+                if cur.fetchone():
+                    # Incoming texts count against the allowance too.
+                    cur.execute("UPDATE public.voxsbridge_users SET sms_used = sms_used + %s WHERE id=%s",
+                                (parts, owner["id"]))
+        return
+    if event in ("message.sent", "message.finalized") and msg_id:
+        to_list = payload.get("to") or []
+        status = ((to_list[0] if to_list else {}) or {}).get("status") or event.split(".")[1]
+        errors = payload.get("errors") or []
+        err = ""
+        if errors:
+            err = re.sub(r"(?i)telnyx", "carrier", str(errors[0].get("detail") or errors[0].get("title") or ""))[:200]
+        with db_connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE public.voxsbridge_sms SET status=%s, error=%s
+                    WHERE provider_message_id=%s""", (status, err, msg_id))
+
+
+@app.post("/webhooks/telnyx-sms")
+async def telnyx_sms_webhook(request: Request):
+    raw = await request.body()
+    if not verify_telnyx_webhook(raw, request.headers.get("telnyx-signature-ed25519", ""),
+                                 request.headers.get("telnyx-timestamp", "")):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    try:
+        data = (json.loads(raw).get("data") or {})
+    except (ValueError, UnicodeDecodeError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    try:
+        _handle_sms_event(data.get("event_type") or "", data.get("payload") or {})
+    except Exception:
+        log.exception("SMS webhook handling failed")
+    return JSONResponse({"ok": True})
+
+
+@app.post("/customers/{email}/sms")
+async def customer_sms_update(request: Request, email: str, sms_enabled: str = Form("false"),
+                              sms_limit: int = Form(0), add_messages: int = Form(0),
+                              reset_used: str = Form("")):
+    require_admin(request)
+    if sms_limit < 0 or add_messages < 0 or sms_limit > 1000000 or add_messages > 1000000:
+        raise HTTPException(422, "Enter a valid number of messages")
+    with db_connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""UPDATE public.voxsbridge_users
+                SET sms_enabled=%s, sms_limit=%s + %s,
+                    sms_used = CASE WHEN %s THEN 0 ELSE sms_used END
+                WHERE lower(email)=lower(%s) AND role<>'admin' RETURNING id""",
+                (sms_enabled == "true", sms_limit, add_messages, reset_used == "1", email))
+            if not cur.fetchone():
+                raise HTTPException(404, "Customer not found")
+    return RedirectResponse('/customers/' + email + '?sms_saved=1', status_code=303)
 
 # CRM and power dialer: user-scoped, opt-in only, PostgreSQL persistence.
 CRM_STATUSES = {"new", "interested", "callback", "converted", "not_interested"}
