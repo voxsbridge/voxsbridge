@@ -114,7 +114,7 @@
                     {% if is_owner(user) %}{{ nav('/team', 'Team', 'team', p.startswith('/team')) }}{% endif %}
                     <h6 class="nav-group">CALLING</h6>
                     {{ nav('/call-logs', 'Call History', 'phone', p == '/call-logs') }}
-                    {{ nav('/messages', 'Messages', 'message', p == '/messages') }}
+                    <a href="/messages" class="{% if p == '/messages' %}active{% endif %}"><span class="ni">{{ icon('message') }}</span><span>Messages{% if user.sms_enabled %} <b class="vb-navbadge" id="vbSmsBadge" hidden></b>{% endif %}</span></a>
                     {{ nav('/voicemails', 'Voicemail', 'voicemail', p == '/voicemails') }}
                     {{ nav('/recordings', 'Recordings', 'record', p == '/recordings') }}
                     {{ nav('/power-dialer', 'Power Dialer', 'bolt', p == '/power-dialer') }}
@@ -185,6 +185,29 @@
         }
       }
       new MutationObserver(sync).observe(src,{childList:true,characterData:true,subtree:true}); sync();
+    })();
+    </script>
+    {% endif %}
+    {% if user.sms_enabled and not is_admin and not reseller %}
+    <script>
+    /* New-text badge on "Messages" + desktop notification for incoming SMS. */
+    (function(){
+      var last = null;
+      function badge(n){ var b=document.getElementById('vbSmsBadge'); if(!b) return; b.textContent = n>99?'99+':n; b.hidden = !n; }
+      function check(){
+        fetch('/api/sms/summary',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){
+          if(!d) return;
+          badge(d.unread);
+          if(last!==null && d.unread>last && location.pathname!=='/messages' || (last!==null && d.unread>last && document.hidden)){
+            try{ if('Notification' in window && Notification.permission==='granted'){
+              var n=new Notification('💬 New text message',{body:'Open VoxsBridge to read it',icon:'{{ brand_icon }}',tag:'voxsbridge-sms'});
+              n.onclick=function(){ try{window.focus()}catch(e){} location.href='/messages'; n.close(); };
+            } }catch(e){}
+          }
+          last=d.unread;
+        }).catch(function(){});
+      }
+      check(); setInterval(check, 20000);
     })();
     </script>
     {% endif %}

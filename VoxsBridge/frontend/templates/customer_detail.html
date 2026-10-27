@@ -87,5 +87,40 @@
   load();
 })();
 </script>
+{% set sms_limit = customer.sms_limit or 0 %}{% set sms_used = customer.sms_used or 0 %}{% set sms_left = [sms_limit - sms_used, 0]|max %}
+<section class="cm-card" id="sms">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div><h2 style="margin:0">Text Messages (SMS)</h2>
+    <p class="cm-muted" style="margin:6px 0 0;font-size:13px">Only enabled users can text. Sent and received messages both count. 1 message = up to 160 characters (70 with Urdu/emoji).</p></div>
+    <span class="cm-pill {% if customer.sms_enabled %}cm-ok{% endif %}">{{ 'SMS ON' if customer.sms_enabled else 'SMS OFF' }}</span>
+  </div>
+  {% if request.query_params.get('sms_saved') %}<p class="cm-pill cm-ok" style="margin-top:12px">SMS settings saved.</p>{% endif %}
+  <div class="cm-metrics" style="margin-top:16px">
+    <div class="cm-metric"><strong>{{ sms_limit }}</strong><small>Allowed messages</small></div>
+    <div class="cm-metric"><strong>{{ sms_used }}</strong><small>Used (sent + received)</small></div>
+    <div class="cm-metric"><strong>{{ sms_left }}</strong><small>Remaining</small></div>
+  </div>
+  <div style="height:8px;border-radius:8px;background:var(--bg-hover,#24314b);overflow:hidden;margin:14px 0 18px"><i style="display:block;height:100%;width:{{ (sms_used * 100 // sms_limit) if sms_limit else 0 }}%;max-width:100%;background:linear-gradient(90deg,#00c6ff,#2563ff)"></i></div>
+  <form method="post" action="/customers/{{ customer.email|urlencode }}/sms">
+    <div class="cm-grid">
+      <div class="cm-field"><label for="smsEnabled">Texting</label>
+        <select name="sms_enabled" id="smsEnabled">
+          <option value="true" {% if customer.sms_enabled %}selected{% endif %}>Enabled — user can send &amp; receive</option>
+          <option value="false" {% if not customer.sms_enabled %}selected{% endif %}>Disabled</option>
+        </select></div>
+      <div class="cm-field"><label for="smsLimit">Allowed messages (total)</label>
+        <input type="number" name="sms_limit" id="smsLimit" min="0" max="1000000" value="{{ sms_limit }}" required></div>
+      <div class="cm-field"><label for="smsAdd">Add more messages (top-up)</label>
+        <input type="number" name="add_messages" id="smsAdd" min="0" max="1000000" value="0"></div>
+      <div class="cm-field"><label for="smsReset">Used counter</label>
+        <select name="reset_used" id="smsReset">
+          <option value="">Keep ({{ sms_used }} used)</option>
+          <option value="1">Reset to 0 (new month / new package)</option>
+        </select></div>
+    </div>
+    {% if not customer.phone_number %}<p class="cm-muted" style="font-size:12px">This user has no number yet — assign a number above before enabling SMS.</p>{% endif %}
+    <button class="cm-btn" type="submit">Save SMS Settings</button>
+  </form>
+</section>
 <div class="cm-grid"><section class="cm-card"><h2>Business & Account Details</h2><form method="post" action="/customers/{{ customer.email|urlencode }}/update"><div class="cm-field"><label>Customer / Business Name</label><input name="name" value="{{ customer.name }}" required></div><div class="cm-field"><label>Login Email (read-only)</label><input value="{{ customer.email }}" readonly></div><div class="cm-field"><label>Plan</label><input name="plan_name" value="{{ customer.plan_name or '' }}"></div><div class="cm-field"><label>Monthly Revenue (PKR)</label><input name="monthly_amount" type="number" min="0" value="{{ customer.last_paid_amount or 0 }}"></div><div class="cm-field"><label>Renewal Date</label><input name="plan_renewal" type="date" value="{{ customer.plan_renewal or '' }}"></div><div class="cm-field"><label>Account Status</label><select name="is_active"><option value="true" {% if customer.is_active %}selected{% endif %}>Active</option><option value="false" {% if not customer.is_active %}selected{% endif %}>Disabled</option></select></div><div class="cm-field"><label>Contact Name</label><input name="contact_name" value="{{ customer.contact_name or '' }}"></div><div class="cm-field"><label>Contact Phone / WhatsApp</label><input name="contact_phone" value="{{ customer.contact_phone or '' }}"></div><div class="cm-field"><label>Address</label><input name="contact_address" value="{{ customer.contact_address or '' }}"></div><div class="cm-field"><label>Notes</label><textarea name="customer_notes" rows="3">{{ customer.customer_notes or '' }}</textarea></div><div class="cm-field"><label>New Password (leave blank to keep unchanged)</label><input type="password" name="new_password" minlength="12" autocomplete="new-password"></div><button class="cm-btn">Save Changes</button></form></section>
 <section><div class="cm-card"><h2>Renewal & Payments</h2><p>Collected to date: <strong>PKR {{ '{:,.0f}'.format(customer.collected or 0) }}</strong></p><p>Last payment: {{ customer.last_payment_at or '—' }}</p><h3>Record Payment</h3><form method="post" action="/customers/{{ customer.email|urlencode }}/payment"><div class="cm-field"><label>Amount (PKR)</label><input type="number" name="amount" min="1" required></div><div class="cm-field"><label>Payment Method</label><input name="method" value="Manual"></div><div class="cm-field"><label>Reference</label><input name="reference"></div><button class="cm-btn">Record Payment</button></form></div><div class="cm-card cm-scroll"><h2>Payment History</h2><table class="cm-table"><tr><th>Date</th><th>Amount</th><th>Status</th></tr>{% for payment in payments %}<tr><td>{{ payment.paid_at or '—' }}</td><td>PKR {{ '{:,.0f}'.format(payment.amount_pkr) }}</td><td>{{ payment.status }}</td></tr>{% else %}<tr><td colspan="3">No payments</td></tr>{% endfor %}</table></div><div class="cm-card"><h3>Delete Customer</h3><p class="cm-muted">Disables login and releases Caller ID. Payment history stays available.</p><form action="/users/delete" method="post" onsubmit="return confirm('Disable this customer?')"><input type="hidden" name="email" value="{{ customer.email }}"><button class="cm-btn cm-btn-alt" style="color:#f87171">Delete / Disable Customer</button></form></div></section></div>{% endblock %}
