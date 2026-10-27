@@ -1,9 +1,314 @@
 {% extends "base.html" %}
 {% block title %}Messages — VoxsBridge{% endblock %}
 {% block content %}
+{% if not sms.enabled %}
 <div class="center-card">
     <div class="warn-ico">!</div>
     <h2>Texting is not enabled</h2>
     <p>This number can make calls. Texting has not been activated for it yet — contact support to enable SMS.</p>
 </div>
+{% else %}
+<style>
+.sms-app [hidden],.sms-wrap [hidden]{display:none!important}
+.sms-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.sms-head h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.sms-head p{color:var(--text-muted);font-size:13px;margin-top:2px}
+.sms-quota{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:14px;background:var(--bg-card);border:1px solid var(--border);min-width:240px}
+.sms-quota b{font-size:20px;font-weight:800;color:var(--text-primary)}
+.sms-quota small{display:block;color:var(--text-muted);font-size:11.5px;font-weight:600}
+.sms-qbar{flex:1;height:6px;border-radius:6px;background:var(--bg-hover);overflow:hidden;min-width:70px}
+.sms-qbar i{display:block;height:100%;background:linear-gradient(90deg,#00c6ff,#2563ff);border-radius:6px}
+.sms-quota.low .sms-qbar i{background:linear-gradient(90deg,#ffb020,#ff4d6a)}
+.sms-app{display:grid;grid-template-columns:300px minmax(0,1fr);height:calc(100vh - 200px);min-height:460px;border:1px solid var(--border);border-radius:18px;overflow:hidden;background:var(--bg-card)}
+.sms-list{border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.sms-list-top{display:flex;gap:8px;padding:12px;border-bottom:1px solid var(--border)}
+.sms-list-top input{flex:1;min-width:0;background:var(--field-bg)!important;border:1px solid var(--border)!important;border-radius:10px;padding:10px 12px;color:var(--text-primary);font:inherit;font-size:13px}
+.sms-new{border:0;border-radius:10px;padding:0 14px;font:inherit;font-weight:800;font-size:13px;color:#fff;background:linear-gradient(135deg,#00c6ff,#2563ff);cursor:pointer;white-space:nowrap}
+.sms-threads{flex:1;overflow-y:auto}
+.sms-thread{display:flex;gap:10px;align-items:center;width:100%;padding:12px 14px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text-primary);text-align:left;font:inherit;cursor:pointer}
+.sms-thread:hover{background:var(--bg-hover)}
+.sms-thread.on{background:var(--accent-glow)}
+.sms-av{width:38px;height:38px;flex:none;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;color:#fff;background:linear-gradient(135deg,#00c6ff,#2563ff)}
+.sms-tmeta{flex:1;min-width:0}
+.sms-tmeta strong{display:flex;justify-content:space-between;gap:6px;font-size:13.5px}
+.sms-tmeta strong span{font-size:11px;color:var(--text-muted);font-weight:600;white-space:nowrap}
+.sms-tmeta small{display:block;color:var(--text-muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.sms-badge{flex:none;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#2563ff;color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center}
+.sms-empty{padding:30px 18px;text-align:center;color:var(--text-muted);font-size:13px}
+.sms-conv{display:flex;flex-direction:column;min-width:0;min-height:0}
+.sms-conv-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);min-height:62px}
+.sms-conv-head strong{flex:1;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sms-back{display:none;border:0;background:transparent;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0 6px}
+.sms-call{border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);border-radius:10px;padding:8px 12px;font-size:12.5px;font-weight:700;text-decoration:none}
+.sms-to{flex:1;display:flex;align-items:center;gap:8px}
+.sms-to label{font-size:13px;color:var(--text-muted);font-weight:700}
+.sms-to input{flex:1;min-width:0;background:var(--field-bg)!important;border:1px solid var(--border)!important;border-radius:10px;padding:9px 12px;color:var(--text-primary);font:inherit;font-size:14px}
+.sms-to small{color:var(--text-muted);font-size:11.5px;white-space:nowrap}
+.sms-msgs{flex:1;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:8px}
+.sms-day{align-self:center;font-size:11px;color:var(--text-muted);font-weight:700;margin:6px 0}
+.sms-bub{max-width:min(520px,78%);padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.sms-bub.in{align-self:flex-start;background:var(--bg-secondary);border:1px solid var(--border);border-bottom-left-radius:5px;color:var(--text-primary)}
+.sms-bub.out{align-self:flex-end;background:linear-gradient(135deg,#1f8bff,#2563ff);color:#fff;border-bottom-right-radius:5px}
+.sms-bub.fail{background:rgba(255,77,106,.14);color:var(--text-primary);border:1px solid rgba(255,77,106,.5)}
+.sms-meta{font-size:10.5px;opacity:.75;margin-top:3px;text-align:right}
+.sms-bub.in .sms-meta{text-align:left}
+.sms-compose{border-top:1px solid var(--border);padding:10px 12px 12px}
+.sms-compose-row{display:flex;gap:10px;align-items:flex-end}
+.sms-compose textarea{flex:1;min-width:0;resize:none;max-height:150px;min-height:44px;background:var(--field-bg)!important;border:1px solid var(--border)!important;border-radius:14px;padding:11px 14px;color:var(--text-primary);font:inherit;font-size:14px;line-height:1.4}
+.sms-send{width:46px;height:46px;flex:none;border:0;border-radius:50%;display:grid;place-items:center;cursor:pointer;background:linear-gradient(135deg,#00c6ff,#2563ff);box-shadow:0 8px 20px rgba(37,99,255,.3)}
+.sms-send:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+.sms-count{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--text-muted);margin-top:6px;padding:0 4px}
+.sms-count .warn{color:#ff6b81;font-weight:700}
+.sms-err{color:#ff6b81;font-size:12.5px;padding:0 4px 6px;min-height:0}
+.sms-placeholder{flex:1;display:grid;place-items:center;text-align:center;color:var(--text-muted);font-size:14px;padding:30px}
+.sms-placeholder b{display:block;color:var(--text-primary);font-size:17px;margin-bottom:6px}
+@media(max-width:860px){
+ .sms-app{grid-template-columns:1fr;height:calc(100vh - 300px);height:calc(100dvh - 300px);min-height:380px}
+ .sms-wrap:has(.sms-app.viewing) .sms-head{display:none}
+ .sms-wrap:has(.sms-app.viewing) .sms-app{height:calc(100vh - 175px);height:calc(100dvh - 175px - env(safe-area-inset-bottom))}
+ .sms-app.viewing .sms-list{display:none}
+ .sms-app:not(.viewing) .sms-conv{display:none}
+ .sms-back{display:block}
+ .sms-quota{min-width:0;width:100%}
+}
+</style>
+
+<div class="sms-wrap">
+<div class="sms-head">
+    <div><h1>Messages</h1><p>Texts are sent from your number <span id="smsMyNum">{{ sms.number or '—' }}</span></p></div>
+    <div class="sms-quota{% if sms.remaining <= (sms.limit // 10) %} low{% endif %}" id="smsQuota">
+        <div><b id="smsLeft">{{ sms.remaining }}</b><small>messages left of <span id="smsLimit">{{ sms.limit }}</span></small></div>
+        <div class="sms-qbar"><i id="smsBar" style="width:{{ (sms.remaining * 100 // sms.limit) if sms.limit else 0 }}%"></i></div>
+    </div>
+</div>
+
+<div class="sms-app" id="smsApp">
+    <aside class="sms-list">
+        <div class="sms-list-top">
+            <input type="search" id="smsSearch" placeholder="Search number or text" aria-label="Search conversations">
+            <button type="button" class="sms-new" id="smsNew">+ New</button>
+        </div>
+        <div class="sms-threads" id="smsThreads"><div class="sms-empty">Loading…</div></div>
+    </aside>
+    <section class="sms-conv" id="smsConv">
+        <div class="sms-placeholder" id="smsPlaceholder"><div><b>Your conversations</b>Pick a conversation or press <strong>+ New</strong> to text someone.</div></div>
+        <div class="sms-conv-head" id="smsConvHead" hidden>
+            <button type="button" class="sms-back" id="smsBack" aria-label="Back to conversations">‹</button>
+            <strong id="smsPeer"></strong>
+            <div class="sms-to" id="smsTo" hidden>
+                <label for="smsToInput">To</label>
+                <input id="smsToInput" type="tel" inputmode="tel" placeholder="Number" autocomplete="off">
+                <small id="smsToHint"></small>
+            </div>
+            <a class="sms-call" id="smsCall" href="#">Call</a>
+        </div>
+        <div class="sms-msgs" id="smsMsgs" hidden></div>
+        <div class="sms-compose" id="smsCompose" hidden>
+            <div class="sms-err" id="smsErr"></div>
+            <div class="sms-compose-row">
+                <textarea id="smsText" rows="1" maxlength="1600" placeholder="Type a message"></textarea>
+                <button type="button" class="sms-send" id="smsSend" aria-label="Send message" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
+                </button>
+            </div>
+            <div class="sms-count"><span id="smsChars">0 / 160 · 1 message</span><span id="smsCost"></span></div>
+        </div>
+    </section>
+</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if sms.enabled %}
+<script>
+(function () {
+  'use strict';
+  if (!document.getElementById('smsApp')) return;
+  const $ = (id) => document.getElementById(id);
+  const app = $('smsApp'), list = $('smsThreads'), msgs = $('smsMsgs'), text = $('smsText'), sendBtn = $('smsSend');
+  const state = { peer: '', composingNew: false, threads: [], remaining: {{ sms.remaining|int }}, limit: {{ sms.limit|int }}, sending: false };
+  const NUM = () => window.VBNumber || { toE164: (v) => v, pretty: (v) => v };
+
+  // ---- message counting (same rules as the server) ----
+  const GSM = /^[@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&'()*+,\-./0-9:;<=>?¡A-ZÄÖÑÜ§¿a-zäöñüà^{}\\[~\]|€]*$/;
+  // Same swap as the server: smart quotes/dashes become plain characters.
+  const SMART = { '\u2014': '-', '\u2013': '-', '\u2018': "'", '\u2019': "'", '\u201c': '"', '\u201d': '"',
+                  '\u2026': '...', '\u00a0': ' ', '\u2022': '-', '\u00b4': "'", '\u02bc': "'" };
+  const clean = (t) => t.replace(/[\u2014\u2013\u2018\u2019\u201c\u201d\u2026\u00a0\u2022\u00b4\u02bc]/g, (c) => SMART[c]);
+  function segments(t) {
+    t = clean(t);
+    if (!t) return { parts: 1, used: 0, per: 160 };
+    if (GSM.test(t)) {
+      const n = [...t].reduce((s, ch) => s + ('^{}\\[~]|€'.includes(ch) ? 2 : 1), 0);
+      return { parts: n <= 160 ? 1 : Math.ceil(n / 153), used: n, per: n <= 160 ? 160 : 153 };
+    }
+    let n = 0; for (const ch of t) n += ch.codePointAt(0) > 0xffff ? 2 : 1;
+    return { parts: n <= 70 ? 1 : Math.ceil(n / 67), used: n, per: n <= 70 ? 70 : 67 };
+  }
+  function updateCounter() {
+    const t = text.value, s = segments(t);
+    const cap = s.parts === 1 ? s.per : s.parts * s.per;
+    $('smsChars').textContent = s.used + ' / ' + cap + ' · ' + s.parts + ' message' + (s.parts > 1 ? 's' : '') + (s.per < 153 ? ' (special characters)' : '');
+    const over = s.parts > state.remaining;
+    $('smsCost').innerHTML = over ? '<span class="warn">Not enough messages left</span>' : 'Uses ' + s.parts + ' of ' + state.remaining + ' left';
+    sendBtn.disabled = state.sending || !t.trim() || over || !(state.peer || $('smsToInput').value.trim());
+    text.style.height = 'auto'; text.style.height = Math.min(150, text.scrollHeight) + 'px';
+  }
+  function setQuota(remaining, limit) {
+    if (typeof remaining === 'number') state.remaining = remaining;
+    if (typeof limit === 'number') state.limit = limit;
+    $('smsLeft').textContent = state.remaining;
+    $('smsLimit').textContent = state.limit;
+    $('smsBar').style.width = (state.limit ? Math.round(state.remaining * 100 / state.limit) : 0) + '%';
+    $('smsQuota').classList.toggle('low', state.remaining <= Math.floor(state.limit / 10));
+    updateCounter();
+  }
+
+  // ---- helpers ----
+  function initials(peer) { const d = peer.replace(/\D/g, ''); return d.slice(-2) || '#'; }
+  function when(iso) {
+    const d = new Date(iso), now = new Date();
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  }
+  const STATUS = { queued: 'Sending…', sending: 'Sending…', sent: 'Sent', delivered: 'Delivered',
+                   delivery_failed: 'Failed', sending_failed: 'Failed', delivery_unconfirmed: 'Sent', failed: 'Failed' };
+
+  // ---- thread list ----
+  function renderThreads() {
+    const q = $('smsSearch').value.trim().toLowerCase();
+    const items = state.threads.filter((t) => !q || t.peer.includes(q.replace(/[^\d+]/g, '') || '§') || t.last.toLowerCase().includes(q));
+    list.replaceChildren();
+    if (!items.length) {
+      const e = document.createElement('div'); e.className = 'sms-empty';
+      e.textContent = state.threads.length ? 'No matches' : 'No messages yet. Press + New to start.';
+      list.appendChild(e); return;
+    }
+    items.forEach((t) => {
+      const b = document.createElement('button'); b.type = 'button';
+      b.className = 'sms-thread' + (t.peer === state.peer ? ' on' : '');
+      const av = document.createElement('span'); av.className = 'sms-av'; av.textContent = initials(t.peer);
+      const meta = document.createElement('span'); meta.className = 'sms-tmeta';
+      const st = document.createElement('strong'); st.textContent = NUM().pretty(t.peer);
+      const tm = document.createElement('span'); tm.textContent = when(t.at); st.appendChild(tm);
+      const sm = document.createElement('small'); sm.textContent = (t.direction === 'out' ? 'You: ' : '') + t.last;
+      meta.append(st, sm); b.append(av, meta);
+      if (t.unread) { const u = document.createElement('span'); u.className = 'sms-badge'; u.textContent = t.unread; b.appendChild(u); }
+      b.addEventListener('click', () => openThread(t.peer));
+      list.appendChild(b);
+    });
+  }
+  async function loadThreads() {
+    try {
+      const r = await fetch('/api/sms/threads', { cache: 'no-store' });
+      if (!r.ok) return;
+      state.threads = (await r.json()).threads || [];
+      renderThreads();
+    } catch (e) {}
+  }
+
+  // ---- conversation ----
+  function showConv(on) {
+    $('smsPlaceholder').hidden = on;
+    $('smsConvHead').hidden = !on; msgs.hidden = !on; $('smsCompose').hidden = !on;
+    app.classList.toggle('viewing', on);
+  }
+  let lastRender = '';
+  function renderMessages(items) {
+    const key = JSON.stringify(items.map((m) => [m.id, m.status]));
+    if (key === lastRender) return;
+    const atBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 80;
+    lastRender = key;
+    msgs.replaceChildren();
+    let day = '';
+    items.forEach((m) => {
+      const d = new Date(m.at).toDateString();
+      if (d !== day) { day = d; const s = document.createElement('div'); s.className = 'sms-day'; s.textContent = new Date(m.at).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }); msgs.appendChild(s); }
+      const failed = /fail/.test(m.status);
+      const b = document.createElement('div'); b.className = 'sms-bub ' + m.direction + (failed ? ' fail' : '');
+      b.textContent = m.body;
+      const meta = document.createElement('div'); meta.className = 'sms-meta';
+      meta.textContent = new Date(m.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) +
+        (m.direction === 'out' ? ' · ' + (STATUS[m.status] || m.status) + (m.error ? ' — ' + m.error : '') : '') +
+        (m.segments > 1 ? ' · ' + m.segments + ' msgs' : '');
+      b.appendChild(meta); msgs.appendChild(b);
+    });
+    if (!items.length) { const e = document.createElement('div'); e.className = 'sms-empty'; e.textContent = 'No messages yet — say hello.'; msgs.appendChild(e); }
+    if (atBottom || items.length) msgs.scrollTop = msgs.scrollHeight;
+  }
+  async function loadThread() {
+    if (!state.peer) return;
+    const peer = state.peer;
+    try {
+      const r = await fetch('/api/sms/thread?peer=' + encodeURIComponent(peer), { cache: 'no-store' });
+      if (!r.ok || peer !== state.peer) return;
+      renderMessages((await r.json()).messages || []);
+    } catch (e) {}
+  }
+  function openThread(peer) {
+    state.peer = peer; state.composingNew = false; lastRender = '';
+    $('smsTo').hidden = true; $('smsPeer').hidden = false; $('smsCall').hidden = false;
+    $('smsPeer').textContent = NUM().pretty(peer);
+    $('smsCall').href = '/dialer?number=' + encodeURIComponent(peer);
+    $('smsErr').textContent = '';
+    showConv(true); renderThreads(); loadThread().then(loadThreads); updateCounter();
+    text.focus();
+  }
+  function newMessage() {
+    state.peer = ''; state.composingNew = true; lastRender = '';
+    $('smsPeer').hidden = true; $('smsCall').hidden = true; $('smsTo').hidden = false;
+    $('smsToInput').value = ''; $('smsToHint').textContent = '';
+    msgs.replaceChildren(); $('smsErr').textContent = '';
+    showConv(true); renderThreads(); updateCounter();
+    $('smsToInput').focus();
+  }
+  $('smsToInput').addEventListener('input', () => {
+    const v = $('smsToInput').value.trim();
+    $('smsToHint').textContent = v ? 'To ' + NUM().pretty(NUM().toE164(v)) : '';
+    updateCounter();
+  });
+
+  // ---- sending ----
+  async function send() {
+    const body = text.value.trim();
+    let to = state.peer || NUM().toE164($('smsToInput').value.trim());
+    if (!body || !to || state.sending) return;
+    state.sending = true; updateCounter(); $('smsErr').textContent = '';
+    try {
+      const r = await fetch('/api/sms/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                               body: JSON.stringify({ to: to, text: body }) });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || 'Message not sent');
+      text.value = '';
+      setQuota(data.remaining);
+      if (state.composingNew) openThread(to); else { lastRender = ''; await loadThread(); }
+      loadThreads();
+    } catch (e) {
+      $('smsErr').textContent = e.message;
+    } finally {
+      state.sending = false; updateCounter();
+    }
+  }
+  sendBtn.addEventListener('click', send);
+  text.addEventListener('input', updateCounter);
+  text.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+  $('smsNew').addEventListener('click', newMessage);
+  $('smsBack').addEventListener('click', () => { state.peer = ''; showConv(false); renderThreads(); });
+  $('smsSearch').addEventListener('input', renderThreads);
+
+  // ---- live updates ----
+  async function refreshQuota() {
+    try { const r = await fetch('/api/sms/summary', { cache: 'no-store' }); if (r.ok) { const d = await r.json(); setQuota(d.remaining, d.limit); } } catch (e) {}
+  }
+  // Stop polling once the user navigates away (pages are swapped without a reload).
+  const alive = (fn) => () => { if (!document.body.contains(app)) { timers.forEach(clearInterval); return; } fn(); };
+  const timers = [setInterval(alive(loadThreads), 6000), setInterval(alive(loadThread), 4000), setInterval(alive(refreshQuota), 15000)];
+  const start = new URLSearchParams(location.search).get('to');
+  loadThreads().then(() => { if (start) openThread(NUM().toE164(start)); });
+  const mine = $('smsMyNum'); if (mine && mine.textContent.startsWith('+')) mine.textContent = NUM().pretty(mine.textContent);
+  updateCounter();
+})();
+</script>
+{% endif %}
 {% endblock %}
