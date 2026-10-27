@@ -1550,3 +1550,12 @@ body.light-theme .vb-callcard { background:rgba(255,255,255,.97); color:#0b1633;
 .dial-rail #padBody[hidden] { display:none !important; }
 .dial-rail #padBody .dial-input-row, .dial-rail #padBody .pn-hint { width:100%; }
 .dial-rail .pn-hint { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* Stop the dialer "shaking" while typing: always reserve the scrollbar space,
+   so the scrollbar appearing/disappearing can no longer resize the keypad. */
+.dial-rail { scrollbar-gutter: stable both-edges; }
+.dial-rail .pn-field #numberInput { min-height:54px; height:54px; line-height:24px; }
+.dial-rail .pn-hint { height:18px; line-height:18px; }
+/* Unread SMS badge in the sidebar */
+.vb-navbadge { display:inline-grid; place-items:center; min-width:19px; height:19px; padding:0 6px; margin-left:6px; border-radius:10px; background:#2563ff; color:#fff !important; font-size:10.5px; font-weight:800; vertical-align:1px; }
+.vb-navbadge[hidden] { display:none; }
+body.nav-collapsed .vb-navbadge { display:none; }
