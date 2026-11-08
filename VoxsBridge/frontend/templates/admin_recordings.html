@@ -14,6 +14,11 @@
 .mr-row .num{font-weight:600}.mr-row audio{height:34px}
 .mr-row .meta{color:var(--text-secondary,#8893a9);font-size:12px}
 .mr-grow{flex:1}
+.mr-del{background:transparent;border:1px solid rgba(244,63,94,.55);color:#fb7185;border-radius:9px;padding:9px 12px;font-weight:600;cursor:pointer}
+.mr-del:hover{background:rgba(244,63,94,.12)}.mr-del:disabled{opacity:.5;cursor:wait}
+.mr-bulk{display:flex;align-items:center;gap:12px;padding:10px 4px;border-top:1px solid var(--border,#2a3141);font-size:13px}
+.mr-bulk label{display:flex;align-items:center;gap:8px;cursor:pointer}.mr-bulk [hidden]{display:none}
+.mr-row input[type=checkbox],.mr-bulk input[type=checkbox]{width:17px;height:17px;accent-color:#2563ff}
 </style>
 <div class="mr-head">
   <div><h1>Call Recordings — {{ customer.name }}</h1>
@@ -31,17 +36,66 @@
     {% if f_direction or f_number or f_date %}<a class="mr-btn alt" href="/customers/{{ customer.email|urlencode }}/recordings">Clear</a>{% endif %}
   </form>
   {% if items %}
+    <div class="mr-bulk">
+      <label><input type="checkbox" id="mrAll"> Select all</label>
+      <span class="mr-muted" id="mrCount"></span><span class="mr-grow"></span>
+      <button type="button" class="mr-del" id="mrDelSel" hidden>Delete selected</button>
+    </div>
     {% for r in items %}
-    <div class="mr-row">
+    <div class="mr-row" data-id="{{ r.id }}">
+      <input type="checkbox" class="mr-pick" value="{{ r.id }}" aria-label="Select recording">
       <span class="dir {{ 'in' if r.direction=='incoming' else 'out' }}">{{ 'IN' if r.direction=='incoming' else 'OUT' }}</span>
       <div><div class="num">{{ r.number }}</div><div class="meta">{{ r.when }} · {{ r.duration }}s · {{ r.size_kb }} KB</div></div>
       <span class="mr-grow"></span>
       <audio controls preload="none" src="/admin/monitor-recordings/{{ r.id }}/audio"></audio>
-      <a class="mr-btn alt" href="/admin/monitor-recordings/{{ r.id }}/audio?download=1">⬇</a>
+      <a class="mr-btn alt" href="/admin/monitor-recordings/{{ r.id }}/audio?download=1" title="Download">⬇</a>
+      <button type="button" class="mr-del" data-del="{{ r.id }}" title="Delete recording">🗑</button>
     </div>
     {% endfor %}
   {% else %}
     <p class="mr-muted" style="padding:22px 0;text-align:center">No recordings{% if f_direction or f_number or f_date %} match these filters{% else %} yet. They appear here after the customer makes or receives calls{% endif %}.</p>
   {% endif %}
 </section>
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  const ask=(t,ok,title)=>window.dnConfirmShared?window.dnConfirmShared(t,ok,title):Promise.resolve(confirm(t));
+  const picks=()=>[...document.querySelectorAll('.mr-pick')];
+  const all=document.getElementById('mrAll'), delSel=document.getElementById('mrDelSel'), count=document.getElementById('mrCount');
+  function sync(){
+    const p=picks(), on=p.filter(c=>c.checked).length;
+    if(!all) return;
+    all.checked=p.length>0&&on===p.length; all.indeterminate=on>0&&on<p.length;
+    delSel.hidden=!on; delSel.textContent='Delete selected ('+on+')'; count.textContent=on?on+' selected':'';
+  }
+  function gone(ids){
+    ids.forEach(id=>{const row=document.querySelector('.mr-row[data-id="'+id+'"]'); if(row) row.remove();});
+    if(!picks().length) location.reload(); else sync();
+  }
+  async function remove(ids, btn){
+    if(!ids.length) return;
+    const many=ids.length>1;
+    if(!(await ask(many?'Delete '+ids.length+' recordings? This cannot be undone.':'Delete this recording? This cannot be undone.',
+                   many?'Yes, delete '+ids.length:'Yes, delete', many?'Delete recordings?':'Delete recording?'))) return;
+    if(btn) btn.disabled=true;
+    try{
+      const res=many
+        ? await fetch('/admin/monitor-recordings/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})})
+        : await fetch('/admin/monitor-recordings/'+encodeURIComponent(ids[0]),{method:'DELETE'});
+      if(!res.ok){const d=await res.json().catch(()=>({}));throw new Error(d.detail||'Could not delete');}
+      gone(ids);
+    }catch(e){ alert(e.message); if(btn) btn.disabled=false; }
+  }
+  document.addEventListener('change',e=>{
+    if(e.target.id==='mrAll'){picks().forEach(c=>c.checked=e.target.checked);sync();}
+    else if(e.target.classList&&e.target.classList.contains('mr-pick')) sync();
+  });
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-del]'); if(b){remove([b.dataset.del],b);return;}
+    if(e.target.id==='mrDelSel') remove(picks().filter(c=>c.checked).map(c=>c.value),e.target);
+  });
+  sync();
+})();
+</script>
 {% endblock %}
