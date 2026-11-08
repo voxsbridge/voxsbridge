@@ -62,6 +62,7 @@
         return '+' + c[0] + ' ' + rest;
     }
     window.DNNumber = { toE164, pretty, home: HOME };
+    window.VBNumber = window.DNNumber;      // older name, kept for cached pages
 
     // Show the caller's own number in a readable way.
     document.querySelectorAll('.rail-own-number').forEach((n) => {

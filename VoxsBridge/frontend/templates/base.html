@@ -41,11 +41,11 @@
     <title>{% block title %}VoxsBridge{% endblock %}</title>
     <script>try{if(localStorage.getItem('voxsbridge-theme')==='light')document.documentElement.classList.add('theme-light-preload')}catch(e){}</script>
     <link rel="icon" href="{{ brand_icon }}">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=20261108c">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="/static/js/csrf.js"></script>
-    <script src="/static/js/page-nav.js"></script>
+    <script src="/static/js/csrf.js?v=20261108c"></script>
+    <script src="/static/js/page-nav.js?v=20261108c"></script>
 </head>
 <body class="vb{% if reseller %} no-rail is-reseller{% endif %}{% if is_admin %} no-rail is-admin{% endif %}">
     <script>try{if(localStorage.getItem('voxsbridge-theme')==='light')document.body.classList.add('light-theme')}catch(e){}</script>
@@ -216,11 +216,11 @@
     {% else %}
     <script src="https://unpkg.com/@telnyx/webrtc@2.22.15/lib/bundle.js"></script>
     {% endif %}
-    <script src="/static/js/call-alert.js"></script>
-    <script src="/static/js/dialer.js?v=20261108"></script>
-    <script src="/static/js/dialer-extras.js"></script>
-    <script src="/static/js/floating-phone.js?v=1"></script>
-    <script src="/static/js/tour.js"></script>
+    <script src="/static/js/call-alert.js?v=20261108c"></script>
+    <script src="/static/js/dialer.js?v=20261108c"></script>
+    <script src="/static/js/dialer-extras.js?v=20261108c"></script>
+    <script src="/static/js/floating-phone.js?v=20261108c"></script>
+    <script src="/static/js/tour.js?v=20261108c"></script>
     <script>
     /* Header line-status pill mirrors the dialer connection state. */
     (function(){
@@ -262,10 +262,10 @@
     })();
     </script>
     {% endif %}
-    <script src="/static/js/ui-enhancements.js"></script>
-    <script src="/static/js/session-guard.js"></script>
-    <script src="/static/js/mobile-nav.js"></script>
-    <script src="/static/js/confirm-modal.js?v=1"></script>
+    <script src="/static/js/ui-enhancements.js?v=20261108c"></script>
+    <script src="/static/js/session-guard.js?v=20261108c"></script>
+    <script src="/static/js/mobile-nav.js?v=20261108c"></script>
+    <script src="/static/js/confirm-modal.js?v=20261108c"></script>
     <div id="pageScripts" hidden><script data-nav-marker>window.VoxsBridgeNav&&VoxsBridgeNav.capture(true)</script>{% block scripts %}{% endblock %}<script data-nav-marker>window.VoxsBridgeNav&&VoxsBridgeNav.capture(false)</script></div>
 </body>
 </html>

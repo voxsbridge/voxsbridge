@@ -45,6 +45,20 @@ const input = document.getElementById('numberInput');
         return '';
     }
     function zoneAllowed(num) { return !ZONES.length || ZONES.includes(zoneOf(num)); }
+    // Number -> +E.164. Uses dialer-extras.js when present; otherwise adds the
+    // country code of the user's own line (US line -> +1, UK line -> +44).
+    function toE164Safe(raw) {
+        const helper = window.DNNumber || window.VBNumber;
+        if (helper && helper.toE164) return helper.toE164(raw);
+        const v = String(raw || '').trim();
+        if (v.startsWith('+')) return '+' + v.replace(/\D/g, '');
+        let d = v.replace(/\D/g, '');
+        if (d.startsWith('00')) return '+' + d.slice(2);
+        const home = zoneOf(FROM);
+        if (home === 'US') return d.length === 11 && d.startsWith('1') ? '+' + d : '+1' + d;
+        if (home === 'UK') return d.startsWith('44') && d.length >= 11 ? '+' + d : '+44' + d.replace(/^0/, '');
+        return '+' + d;
+    }
     // Emergency / short codes are never dialed (Telnyx charges $100 for an unregistered emergency call).
     function isEmergency(num) {
         let d = String(num || '').replace(/\D/g, '');
@@ -226,7 +240,7 @@ function markEnded(reason) {
             .filter(Boolean).join(' ');
         if (sip || cause) console.warn('[VoxsBridge] call ended:', { cause, sipCode: sip, sipReason: reason, causeCode: call && call.causeCode });
         const tag = detail ? ' (' + detail + ')' : '';
-        if (cause.includes('BUSY') || sip === 486) return 'Busy';
+        if (cause.includes('BUSY') || sip === 486) return 'Busy' + tag;
         if (cause.includes('REJECT') || sip === 603) return 'Call declined' + tag;
         if (cause.includes('NO_ANSWER') || sip === 408) return 'No answer';
         if (sip === 480 || sip === 487) return 'No answer';
@@ -596,9 +610,11 @@ function markEnded(reason) {
                     if (heldCalls.length || confCalls.length || Date.now() - lastSideEnd < 8000) return;
                     if (!callIsDead(activeCall) && sawOtherLines) return;
                 }
+                console.warn('[VoxsBridge] provider hangup message:', msg);
                 markEnded(endReason({
                     cause: params.cause || params.sipReason || params.sip_reason || '',
-                    sipCode: params.sipCode || params.sip_code || 0
+                    sipCode: params.sipCode || params.sip_code || 0,
+                    sipReason: params.sipReason || params.sip_reason || ''
                 }));
             });
             client.on('telnyx.notification', (n) => {
@@ -644,7 +660,7 @@ function markEnded(reason) {
         let number = input.value.trim();
         if (!number) return setStatus('Enter a number', 'var(--danger)');
         // Country code is added from the user's own line (US line -> +1, UK line -> +44).
-        number = window.DNNumber ? window.DNNumber.toE164(number) : (number.startsWith('+') ? number : '+' + number.replace(/\D/g, ''));
+        number = toE164Safe(number);
         if (!/^\+[1-9]\d{6,14}$/.test(number)) return setStatus('Check the number: ' + number, 'var(--danger)');
         if (isEmergency(number)) return setStatus('Emergency and short numbers cannot be called', 'var(--danger)');
         if (!zoneAllowed(number)) return setStatus('Your line can only call ' + ZONE_TEXT, 'var(--danger)');
@@ -970,7 +986,7 @@ function hangup() {
         let number = document.getElementById('composeInput').value.trim();
         if (!number) return setStatus('Enter a number', 'var(--danger)');
         // Country code is added from the user's own line (US line -> +1, UK line -> +44).
-        number = window.DNNumber ? window.DNNumber.toE164(number) : (number.startsWith('+') ? number : '+' + number.replace(/\D/g, ''));
+        number = toE164Safe(number);
         if (!/^\+[1-9]\d{6,14}$/.test(number)) return setStatus('Check the number: ' + number, 'var(--danger)');
         if (composeMode === 'transfer') {
             if (!activeCall) return backToCall();
