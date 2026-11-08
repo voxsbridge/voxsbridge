@@ -27,9 +27,9 @@
         <p style="margin-top:16px;">Your renewal is close. Contact VoxsBridge admin to pay by bank transfer or card.</p>
         {% endif %}
     </div>
-    <div class="card" style="grid-column:1 / -1;">
-        <strong>Unlock Call Recording</strong>
+    {% if user.role != 'admin' and not user.recording_premium %}<div class="card" style="grid-column:1 / -1;">
+        <strong>Add Call Recording</strong>
         <p style="color:var(--text-muted);margin:8px 0 0;">Record calls and keep them on the Recordings page. $25, turned on by your admin after payment.</p>
-    </div>
+    </div>{% endif %}
 </div>
 {% endblock %}

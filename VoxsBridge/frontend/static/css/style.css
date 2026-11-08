@@ -1315,6 +1315,118 @@ body.no-rail.nav-collapsed .shell-body { grid-template-columns: 72px 1fr; }
 @media (min-width: 1101px) { .shell-body { min-height: calc(100vh - 64px); } }
 .rates-form select { background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 9px; padding: 10px; font: inherit; }
 
+/* ========== TEXT MESSAGES (SMS) ========== */
+.sms-locked{max-width:560px;margin:40px auto}.sms-locked .warn-ico{font-size:30px;background:none}
+.sms-app{display:grid;grid-template-columns:340px minmax(0,1fr);height:calc(100vh - 128px);min-height:520px;background:var(--bg-card);border:1px solid var(--border);border-radius:18px;overflow:hidden}
+.sms-side{display:flex;flex-direction:column;border-right:1px solid var(--border);min-width:0}
+.sms-side-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:18px 18px 10px}
+.sms-side-head h1{font-size:22px;margin:0}.sms-side-head small{color:var(--text-secondary);font-size:12px}.sms-from{color:var(--text-primary);font-weight:600}
+.sms-search{margin:4px 16px 10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text-primary);font:inherit;font-size:13px}
+.sms-threads{flex:1;overflow-y:auto;padding:0 8px 10px}
+.sms-row{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:none;border:0;border-radius:12px;padding:11px 10px;color:var(--text-primary);cursor:pointer;font:inherit}
+.sms-row:hover{background:var(--bg-hover)}.sms-row.active{background:rgba(37,99,255,.16)}
+.sms-avatar{width:40px;height:40px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:14px;color:#fff;background:linear-gradient(135deg,#2563ff,#1d3fe0)}
+.sms-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.sms-row-top{display:flex;justify-content:space-between;gap:8px}.sms-row-top strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sms-row-top small{color:var(--text-muted);font-size:11px;white-space:nowrap}
+.sms-row-prev{color:var(--text-secondary);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sms-row.unread strong,.sms-row.unread .sms-row-prev{color:var(--text-primary);font-weight:700}
+.sms-badge{min-width:20px;height:20px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 6px}
+.sms-empty{color:var(--text-secondary);font-size:13px;text-align:center;padding:30px 14px}
+.sms-main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.sms-placeholder{margin:auto;text-align:center;color:var(--text-secondary);padding:30px}.sms-placeholder h2{color:var(--text-primary);font-size:19px;margin:10px 0 6px}.sms-ph-ico{font-size:40px}
+.sms-thread{display:flex;flex-direction:column;height:100%;min-height:0}.sms-thread[hidden]{display:none}
+.sms-thread-head{display:flex;align-items:center;gap:11px;padding:13px 16px;border-bottom:1px solid var(--border)}
+.sms-who{flex:1;min-width:0;display:flex;flex-direction:column}.sms-who strong{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sms-who small{color:var(--text-secondary);font-size:12px}
+.sms-thread-head .module-btn{padding:8px 12px}.sms-thread-head .icon-btn[hidden]{display:none}
+.sms-back{display:none;background:none;border:0;color:var(--text-primary);font-size:30px;line-height:1;cursor:pointer;padding:0 6px 4px 0}
+.sms-messages{flex:1;overflow-y:auto;padding:18px 18px 8px;display:flex;flex-direction:column;gap:6px;background:linear-gradient(180deg,rgba(37,99,255,.04),transparent 40%)}
+.sms-day{align-self:center;font-size:11px;color:var(--text-muted);background:var(--bg-secondary);border:1px solid var(--border);border-radius:20px;padding:3px 11px;margin:8px 0}
+.sms-msg{display:flex;flex-direction:column;max-width:72%}.sms-msg.in{align-self:flex-start}.sms-msg.out{align-self:flex-end;align-items:flex-end}
+.sms-bubble{padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.sms-msg.in .sms-bubble{background:var(--bg-secondary);border:1px solid var(--border);border-bottom-left-radius:5px;color:var(--text-primary)}
+.sms-msg.out .sms-bubble{background:linear-gradient(135deg,#1f8bff,#2563ff);color:#fff;border-bottom-right-radius:5px}
+.sms-msg.bad .sms-bubble{background:#7f1d2d}
+.sms-msg small{font-size:10.5px;color:var(--text-muted);margin:3px 6px 4px}
+.sms-media{display:block;margin-top:6px;color:inherit;text-decoration:underline;font-size:12.5px}
+.sms-compose{display:flex;align-items:flex-end;gap:9px;padding:12px 16px 4px;border-top:1px solid var(--border)}
+.sms-compose textarea{flex:1;resize:none;background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;padding:11px 13px;color:var(--text-primary);font:inherit;font-size:14px;max-height:140px;outline:none}
+.sms-compose textarea:focus{border-color:var(--accent)}
+.sms-send{width:44px;height:44px;border-radius:13px;border:0;background:var(--accent);color:#fff;font-size:18px;cursor:pointer;flex:none}.sms-send:disabled{opacity:.45}
+.sms-meta{display:flex;justify-content:space-between;gap:10px;padding:2px 18px 12px;font-size:11px;color:var(--text-muted)}.sms-error{color:#fb7185;text-align:right}
+.nav-sms-badge{margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:inline-grid;place-items:center}
+.nav-sms-badge[hidden]{display:none}
+@media(max-width:1100px){.sms-app{height:calc(100vh - 150px - env(safe-area-inset-bottom));grid-template-columns:1fr;border-radius:14px}
+  .sms-app .sms-main{display:none}.sms-app.in-thread .sms-side{display:none}.sms-app.in-thread .sms-main{display:flex}.sms-back{display:block}
+  .sms-msg{max-width:86%}.sms-compose textarea{font-size:16px}}
+
+/* ===== 2026-10-25: incoming call popup + decline + dialer width ===== */
+/* ===== Incoming call card (WhatsApp-style) ===== */
+.dn-callcard { position:fixed; top:18px; left:50%; z-index:5000; width:min(420px, calc(100vw - 24px));
+  display:flex; align-items:center; gap:14px; padding:14px 14px 14px 16px; border-radius:20px;
+  background:rgba(10,18,38,.96); color:#eaf1ff; border:1px solid rgba(0,198,255,.45);
+  box-shadow:0 24px 60px rgba(0,0,0,.45), 0 0 0 6px rgba(0,198,255,.08);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  transform:translate(-50%, -140%); transition:transform .28s cubic-bezier(.2,.9,.3,1.2); font-family:inherit; }
+.dn-callcard[hidden] { display:none; }
+.dn-callcard.open { transform:translate(-50%, 0); }
+body.light-theme .dn-callcard { background:rgba(255,255,255,.97); color:#0b1633; border-color:rgba(37,99,235,.35); box-shadow:0 24px 60px rgba(16,40,100,.22); }
+.dn-callcard-pulse { position:relative; width:48px; height:48px; flex:none; }
+.dn-callcard-pulse span { position:relative; z-index:1; width:48px; height:48px; border-radius:50%; display:grid; place-items:center; background:linear-gradient(135deg,#00c6ff,#2563eb); }
+.dn-callcard-pulse::before, .dn-callcard-pulse::after { content:""; position:absolute; inset:0; border-radius:50%; background:rgba(0,198,255,.45); animation:dnRipple 1.6s ease-out infinite; }
+.dn-callcard-pulse::after { animation-delay:.8s; }
+@keyframes dnRipple { from { transform:scale(1); opacity:.7; } to { transform:scale(1.9); opacity:0; } }
+.dn-callcard-info { flex:1; min-width:0; }
+.dn-callcard-info small { display:block; font-size:11.5px; font-weight:600; opacity:.7; }
+.dn-callcard-info strong { display:block; font-size:17px; font-weight:800; letter-spacing:.02em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:inherit !important; }
+.dn-callcard-actions { display:flex; gap:10px; flex:none; }
+.dn-cc-btn { width:48px; height:48px; border-radius:50%; border:0; display:grid; place-items:center; cursor:pointer; transition:transform .15s; }
+.dn-cc-btn:hover { transform:scale(1.08); }
+.dn-cc-answer { background:linear-gradient(135deg,#10d48e,#0aa874); box-shadow:0 8px 20px rgba(16,212,142,.4); animation:dnShake 1.4s ease-in-out infinite; }
+.dn-cc-decline { background:#ef4458; box-shadow:0 8px 20px rgba(239,68,88,.35); }
+@keyframes dnShake { 0%,60%,100% { transform:rotate(0); } 65% { transform:rotate(-14deg); } 75% { transform:rotate(14deg); } 85% { transform:rotate(-10deg); } 95% { transform:rotate(6deg); } }
+@media (max-width:1100px) { .dn-callcard { top:10px; } }
+
+/* "Turn on call alerts" banner */
+.dn-alertbar { position:fixed; left:16px; bottom:16px; z-index:4000; width:min(380px, calc(100vw - 32px));
+  display:flex; align-items:center; gap:10px; padding:12px 12px 12px 14px; border-radius:14px;
+  background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border); box-shadow:0 18px 45px rgba(0,0,0,.35); }
+.dn-alertbar-ico { font-size:20px; }
+.dn-alertbar-text { flex:1; min-width:0; }
+.dn-alertbar-text b { display:block; font-size:13.5px; }
+.dn-alertbar-text small { display:block; font-size:12px; color:var(--text-secondary); margin-top:2px; }
+.dn-alertbar-on { border:0; border-radius:9px; padding:8px 14px; font:inherit; font-size:13px; font-weight:700; color:#fff; background:linear-gradient(135deg,#00c6ff,#2563eb); cursor:pointer; }
+.dn-alertbar-x { border:0; background:transparent; color:var(--text-muted); font-size:20px; cursor:pointer; padding:0 4px; }
+@media (max-width:1100px) { .dn-alertbar { bottom:calc(78px + env(safe-area-inset-bottom)); left:12px; } }
+
+
+/* Keep the dialer the same width while typing (the hint text used to resize it) */
+.dial-rail #padBody { width:100%; align-self:stretch; display:flex; flex-direction:column; align-items:center; }
+.dial-rail #padBody[hidden] { display:none !important; }
+.dial-rail #padBody .dial-input-row, .dial-rail #padBody .pn-hint { width:100%; }
+.dial-rail .pn-hint { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Number box without country flag: full width, number always fully visible */
+.pn-cc[hidden] { display:none !important; }
+.dial-rail .pn-field.pn-noflag #numberInput { padding-left:40px !important; padding-right:40px !important; text-align:center; text-overflow:clip; }
+.pn-field.pn-noflag #numberInput { font-size:21px !important; letter-spacing:.5px !important; }
+.pn-field.pn-noflag.pn-long #numberInput { font-size:17px !important; letter-spacing:.2px !important; }
+.pn-field.pn-noflag.pn-xlong #numberInput { font-size:15px !important; letter-spacing:0 !important; }
+.pn-hint { text-align:center; }
+.dial-rail .rail-own-number { letter-spacing:.03em; }
+/* Stop the dialer "shaking" while typing: always reserve the scrollbar space,
+   so the scrollbar appearing/disappearing can no longer resize the keypad. */
+.dial-rail { scrollbar-gutter: stable both-edges; }
+.dial-rail .pn-field #numberInput { min-height:54px; height:54px; line-height:24px; }
+.dial-rail .pn-hint { height:18px; line-height:18px; }
+
+/* 2026-10-25b: admin menu groups */
+.shell-nav .nav-group{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);padding:16px 14px 6px;opacity:.85}
+.shell-nav .nav-group:first-child{padding-top:4px}
+.shell-nav .ni-svg{display:inline-flex;align-items:center;justify-content:center;width:22px}
+.shell-nav .ni-svg svg{display:block}
+body.nav-collapsed .shell-nav .nav-group{font-size:0;padding:10px 0 4px;margin:0 14px;border-top:1px solid var(--border)}
+body.nav-collapsed .shell-nav .nav-group:first-child{border-top:0}
+
 /* =====================================================================
    VOXSBRIDGE THEME — Global Calling Solutions
    Colors taken from the logo: cyan #00C6FF → bridge blue #2563FF → deep blue #1D2FD8

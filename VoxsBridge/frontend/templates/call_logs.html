@@ -53,7 +53,7 @@
       <audio class="dn-audio" id="dAudio" controls preload="none"></audio>
     </div>
     <div class="dn-actions">
-      <a class="dn-btn primary" id="dCall" href="#">☎ Call back</a>
+      <a class="dn-btn primary" id="dCall" href="#">☎ Call back</a>{% if has_sms(user) %}<a class="dn-btn" id="dText" href="#">💬 Text</a>{% endif %}
       <button type="button" class="dn-btn" id="dSave">＋ Save contact</button>
       <button type="button" class="dn-btn" id="dCopy">⧉ Copy number</button>
       <button type="button" class="dn-btn danger" id="dDelete">🗑 Delete log</button>
@@ -111,6 +111,8 @@
     const call = $('dCall');
     if (dialable(number)) { call.href = '/dialer?number=' + encodeURIComponent(number) + '&call=1'; call.removeAttribute('aria-disabled'); call.style.pointerEvents = ''; call.style.opacity = ''; }
     else { call.href = '#'; call.setAttribute('aria-disabled', 'true'); call.style.pointerEvents = 'none'; call.style.opacity = '.5'; }
+    const txt = $('dText');
+    if (txt) { if (dialable(number)) { txt.href = '/messages?to=' + encodeURIComponent(number); txt.style.pointerEvents = ''; txt.style.opacity = ''; } else { txt.href = '#'; txt.style.pointerEvents = 'none'; txt.style.opacity = '.5'; } }
     $('dSave').disabled = !number;
     $('dSave').textContent = current.contact_name ? '✎ Rename contact' : '＋ Save contact';
     $('dCopy').disabled = !number;

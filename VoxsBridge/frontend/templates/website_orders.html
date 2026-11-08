@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Website orders — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Website orders</h1><p class="muted">Customers who bought a plan on the website (paid orders). {{ orders|length }} order{{ '' if orders|length == 1 else 's' }} · ${{ '{:,.2f}'.format(total_usd) }} total.</p></div></div>
+<section class="panel">
+  <input id="woSearch" type="search" placeholder="Search by order, name, email, number..." autocomplete="off" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border,#31384b);background:transparent;color:inherit;margin-bottom:14px">
+  {% if orders %}
+  <div class="table-scroll"><table class="modern-table">
+    <thead><tr><th>Order</th><th>Customer</th><th>Users &amp; numbers</th><th>Paid</th><th>Add-ons</th><th>Renews</th></tr></thead>
+    <tbody>
+    {% for o in orders %}
+    <tr class="wo-row" data-search="{{ (o.ref ~ ' ' ~ o.company_name ~ ' ' ~ o.owner_email ~ ' ' ~ o.plan_name ~ ' ' ~ (o.users|map(attribute='name')|join(' ')) ~ ' ' ~ (o.users|map(attribute='email')|join(' ')) ~ ' ' ~ (o.users|map(attribute='phone_number')|select|join(' ')))|lower|e }}">
+      <td><strong>{{ o.ref }}</strong><small>{{ o.plan_name }}</small><small>{{ o.created_at.strftime('%d %b %Y') if o.created_at else '' }}</small></td>
+      <td>{{ o.company_name }}<small><a href="/customers/{{ o.owner_email|urlencode }}">{{ o.owner_email }}</a></small>{% if o.whatsapp %}<small><a href="https://wa.me/{{ o.whatsapp|replace('+','')|replace(' ','') }}" target="_blank" rel="noopener">WhatsApp {{ o.whatsapp }}</a></small>{% endif %}</td>
+      <td>{% for u in o.users %}<div><a href="/customers/{{ u.email|urlencode }}">{{ u.name }}</a> <small>{{ u.email }}</small> &middot; <strong>{{ u.phone_number or 'no number' }}</strong>{% if not u.is_active %} <span class="dn-pill warn">disabled</span>{% endif %}</div>{% endfor %}</td>
+      <td><strong>${{ '%.2f'|format(o.amount_usd|float) }}</strong><small>{{ {'bank':'Bank transfer','usdt':'Crypto (USDT)','stripe':'Card','other':'Other'}.get(o.paid_method or o.payment_method, o.paid_method or o.payment_method) }}</small><small>{{ o.paid_at.strftime('%d %b %Y %H:%M') if o.paid_at else '' }}</small></td>
+      <td>{% for a in (o.addons or []) %}<span class="dn-pill">{{ a }}</span> {% endfor %}{% if o.sms_packs %}<small>SMS packs: {{ o.sms_packs }} ({{ o.sms_packs * 100 }} msgs)</small>{% endif %}{% if o.toll_free %}<small>Toll-free</small>{% endif %}</td>
+      <td>{% if o.users %}{{ o.users[0].plan_renewal or '—' }}{% else %}—{% endif %}{% if o.note %}<small>{{ o.note }}</small>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% else %}<p class="empty-note">No paid website orders yet.</p>{% endif %}
+</section>
+<script>(function(){const i=document.getElementById('woSearch');i.addEventListener('input',()=>{const q=i.value.toLowerCase().trim();document.querySelectorAll('.wo-row').forEach(r=>r.hidden=!!q&&!r.dataset.search.includes(q))})})();</script>
+{% endblock %}

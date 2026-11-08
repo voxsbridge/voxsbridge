@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ feature }} — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ feature }}</h1></div></div>
+<section class="panel">
+  <h2>This feature is not part of your plan</h2>
+  <p class="muted">{{ feature }} is part of the Campaigns &amp; Power Dialer add-on (Power Dialer, Campaigns, CRM and Callbacks). To switch it on for your team, message us on WhatsApp and we will enable it.</p>
+  <p><a class="btn btn-primary" href="https://wa.me/{{ support_whatsapp }}" target="_blank" rel="noopener">Message us on WhatsApp</a></p>
+</section>
+{% endblock %}

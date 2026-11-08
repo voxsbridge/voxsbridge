@@ -23,6 +23,9 @@
 {%- elif name == 'handshake' -%}<path d="M11 17l2 2a1 1 0 1 0 3-3"/><path d="M14 14l2.5 2.5a1 1 0 1 0 3-3l-3.9-3.9a3 3 0 0 0-4.2 0l-.9.9a1 1 0 1 1-3-3l2.8-2.8a5.8 5.8 0 0 1 7.1-.9l.5.3a2 2 0 0 0 1.4.2L21 4"/><path d="M21 3l1 11h-2M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3M3 4h8"/>
 {%- elif name == 'settings' -%}<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
 {%- elif name == 'menu' -%}<path d="M4 6h16M4 12h16M4 18h16"/>
+{%- elif name == 'useradd' -%}<circle cx="10" cy="8" r="4"/><path d="M2 21v-1a6 6 0 0 1 12 0v1"/><path d="M19 8v6M16 11h6"/>
+{%- elif name == 'clock' -%}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+{%- elif name == 'cart' -%}<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L22 7H6"/>
 {%- endif -%}
 </svg>
 {%- endmacro -%}
@@ -56,7 +59,8 @@
             </a>
             <label class="shell-search">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
-                <input type="search" placeholder="{% if is_admin %}Search customers, companies, invoices...{% else %}Search contacts, calls, campaigns...{% endif %}" id="globalSearch">
+                <input type="search" placeholder="{% if is_admin %}Search users, numbers, contacts, call logs...{% else %}Search contacts, calls, campaigns...{% endif %}" id="globalSearch" autocomplete="off">
+                <div id="globalResults" class="gs-results" hidden></div>
             </label>
             <div class="shell-tools">
                 {% if is_admin %}
@@ -90,6 +94,44 @@
                 </div>
             </div>
         </header>
+<style>.shell-search{position:relative}.gs-results{position:absolute;top:calc(100% + 8px);left:0;min-width:min(560px,92vw);max-height:70vh;overflow:auto;background:var(--surface,#171d2e);border:1px solid var(--border,#31384b);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.45);z-index:200;padding:8px;color:var(--text-primary,#eaf0ff)}.gs-results h4{margin:8px 8px 4px;font-size:10px;letter-spacing:.09em;text-transform:uppercase;opacity:.6}.gs-results a{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border-radius:9px;color:inherit;text-decoration:none;font-size:13px}.gs-results a:hover,.gs-results a:focus{background:rgba(37,99,255,.18)}.gs-results small{opacity:.65}.gs-empty{padding:14px;opacity:.7;font-size:13px}.gs-off{color:#f87171}</style>
+<script>
+(function(){
+ const input=document.getElementById('globalSearch'),box=document.getElementById('globalResults');
+ if(!input||!box)return;let timer=0,seq=0;
+ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function sec(title,rows){return rows.length?'<h4>'+title+'</h4>'+rows.join(''):''}
+ async function run(){
+  const q=input.value.trim();
+  if(q.length<2){box.hidden=true;return}
+  const mine=++seq;
+  try{
+   const r=await fetch('/api/search?q='+encodeURIComponent(q),{credentials:'same-origin',cache:'no-store'});
+   if(!r.ok)throw 0;const d=await r.json();if(mine!==seq)return;
+   const html=sec('Users',(d.users||[]).map(u=>'<a href="'+esc(u.href)+'"><span><strong>'+esc(u.name)+'</strong> <small>'+esc(u.email)+'</small></span><small>'+esc(u.number||'no number')+(u.active?'':' · <span class="gs-off">disabled</span>')+'</small></a>'))
+    +sec('Contacts',(d.contacts||[]).map(c=>'<a href="'+esc(c.href)+'"><span><strong>'+esc(c.name)+'</strong> <small>'+esc(c.number)+'</small></span><small>'+esc(c.owner)+'</small></a>'))
+    +sec('Call logs',(d.calls||[]).map(c=>'<a href="'+esc(c.href)+'"><span>'+esc(c.from)+' → '+esc(c.to)+' <small>'+esc(c.direction)+' · '+esc(c.status)+'</small></span><small>'+esc(c.owner?c.owner+' · ':'')+esc(c.when)+'</small></a>'));
+   box.innerHTML=html||'<div class="gs-empty">No results for "'+esc(q)+'"</div>';box.hidden=false;
+  }catch(e){box.innerHTML='<div class="gs-empty">Search is not available right now.</div>';box.hidden=false}
+ }
+ input.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(run,250)});
+ input.addEventListener('focus',()=>{if(input.value.trim().length>=2)run()});
+ input.addEventListener('keydown',e=>{if(e.key==='Escape'){box.hidden=true}});
+ document.addEventListener('click',e=>{if(!e.target.closest('.shell-search'))box.hidden=true});
+ // Shared by the Users / Customers tables: filter rows by text OR by server matches (contacts, call logs, numbers).
+ window.dnTableSearch=function(inp,rows,textOf,onDone){
+  let t=0,n=0;
+  inp.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(async()=>{
+   const q=inp.value.toLowerCase().trim();
+   const show=(set)=>{rows().forEach(r=>{const hit=!q||textOf(r).includes(q)||(set&&set.has((r.dataset.email||'').toLowerCase()));r.hidden=!hit});if(onDone)onDone()};
+   show(null);
+   if(q.length<2)return;const mine=++n;
+   try{const r=await fetch('/api/search?scope=customers&q='+encodeURIComponent(q),{credentials:'same-origin'});if(!r.ok)return;const d=await r.json();if(mine===n)show(new Set((d.emails||[]).map(x=>x.toLowerCase())))}catch(e){}
+  },200)});
+ };
+})();
+</script>
+
         <div class="shell-body">
             <aside class="shell-nav" id="shellNav">
                 <button type="button" class="nav-collapse" onclick="document.body.classList.toggle('nav-collapsed')" title="Collapse">‹</button>
@@ -104,6 +146,9 @@
                     {{ nav('/customers', 'Customers', 'customers', p.startswith('/customers')) }}
                     {{ nav('/companies', 'Companies', 'building', p.startswith('/companies') or p.startswith('/team')) }}
                     {{ nav('/users', 'User Accounts', 'users', p == '/users') }}
+                    {{ nav('/users/new', 'Create User', 'useradd', p == '/users/new') }}
+                    {{ nav('/users/pending', 'Pending Orders', 'clock', p == '/users/pending') }}
+                    {{ nav('/users/website-orders', 'Website Orders', 'cart', p == '/users/website-orders') }}
                     <h6 class="nav-group">PARTNERS</h6>
                     {{ nav('/resellers', 'Resellers', 'handshake', p.startswith('/resellers')) }}
                     <h6 class="nav-group">FINANCE</h6>
@@ -114,15 +159,17 @@
                     {% if is_owner(user) %}{{ nav('/team', 'Team', 'team', p.startswith('/team')) }}{% endif %}
                     <h6 class="nav-group">CALLING</h6>
                     {{ nav('/call-logs', 'Call History', 'phone', p == '/call-logs') }}
-                    <a href="/messages" class="{% if p == '/messages' %}active{% endif %}"><span class="ni">{{ icon('message') }}</span><span>Messages{% if user.sms_enabled %} <b class="vb-navbadge" id="vbSmsBadge" hidden></b>{% endif %}</span></a>
+                    <a href="/messages" class="{% if p == '/messages' %}active{% endif %}"><span class="ni">{{ icon('message') }}</span><span>Messages{% if has_sms(user) %} <b class="vb-navbadge" id="vbSmsBadge" data-sms-badge hidden></b>{% endif %}</span></a>
                     {{ nav('/voicemails', 'Voicemail', 'voicemail', p == '/voicemails') }}
                     {{ nav('/recordings', 'Recordings', 'record', p == '/recordings') }}
-                    {{ nav('/power-dialer', 'Power Dialer', 'bolt', p == '/power-dialer') }}
+                    {% if has_power(user) %}{{ nav('/power-dialer', 'Power Dialer', 'bolt', p == '/power-dialer') }}{% endif %}
                     <h6 class="nav-group">CUSTOMERS</h6>
                     {{ nav('/contacts', 'Contacts', 'contact', p == '/contacts') }}
+                    {% if has_power(user) %}
                     {{ nav('/crm', 'CRM Pipeline', 'crm', p == '/crm') }}
                     {{ nav('/campaigns', 'Campaigns', 'campaign', p == '/campaigns') }}
                     {{ nav('/follow-ups', 'Callbacks', 'calendar', p == '/follow-ups') }}
+                    {% endif %}
                     {{ nav('/scripts', 'Call Scripts', 'script', p == '/scripts') }}
                     <h6 class="nav-group">ACCOUNT</h6>
                     {{ nav('/billing', 'Billing', 'card', p == '/billing') }}
@@ -132,6 +179,9 @@
             </aside>
             <main class="shell-main" id="pageMain">
                 <script data-nav-marker>window.VoxsBridgeNav&&VoxsBridgeNav.capture(true)</script>
+                {% if user and user.signup_source == 'website' and not user.phone_number and user.role != 'admin' and user.user_type != 'reseller' %}
+                <div class="alert alert-error" role="alert" style="margin:12px 0">Your account is ready, but we could not assign your number yet. Please contact us on WhatsApp to get your number: <a href="https://wa.me/{{ support_whatsapp }}" target="_blank" rel="noopener">message us</a>.</div>
+                {% endif %}
                 {% block content %}{% endblock %}
                 <script data-nav-marker>window.VoxsBridgeNav&&VoxsBridgeNav.capture(false)</script>
             </main>
@@ -167,8 +217,9 @@
     <script src="https://unpkg.com/@telnyx/webrtc@2.22.15/lib/bundle.js"></script>
     {% endif %}
     <script src="/static/js/call-alert.js"></script>
-    <script src="/static/js/dialer.js"></script>
+    <script src="/static/js/dialer.js?v=20261108"></script>
     <script src="/static/js/dialer-extras.js"></script>
+    <script src="/static/js/floating-phone.js?v=1"></script>
     <script src="/static/js/tour.js"></script>
     <script>
     /* Header line-status pill mirrors the dialer connection state. */
@@ -188,14 +239,14 @@
     })();
     </script>
     {% endif %}
-    {% if user.sms_enabled and not is_admin and not reseller %}
+    {% if has_sms(user) and not is_admin and not reseller %}
     <script>
     /* New-text badge on "Messages" + desktop notification for incoming SMS. */
     (function(){
       var last = null;
       function badge(n){ var b=document.getElementById('vbSmsBadge'); if(!b) return; b.textContent = n>99?'99+':n; b.hidden = !n; }
       function check(){
-        fetch('/api/sms/summary',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){
+        fetch('/api/sms/unread',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){
           if(!d) return;
           badge(d.unread);
           if(last!==null && d.unread>last && location.pathname!=='/messages' || (last!==null && d.unread>last && document.hidden)){
@@ -214,6 +265,7 @@
     <script src="/static/js/ui-enhancements.js"></script>
     <script src="/static/js/session-guard.js"></script>
     <script src="/static/js/mobile-nav.js"></script>
+    <script src="/static/js/confirm-modal.js?v=1"></script>
     <div id="pageScripts" hidden><script data-nav-marker>window.VoxsBridgeNav&&VoxsBridgeNav.capture(true)</script>{% block scripts %}{% endblock %}<script data-nav-marker>window.VoxsBridgeNav&&VoxsBridgeNav.capture(false)</script></div>
 </body>
 </html>

@@ -1,0 +1,47 @@
+{% extends "base.html" %}{% block title %}Call Recordings — VoxsBridge{% endblock %}{% block content %}
+<style>
+.mr-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin:12px 0 16px}
+.mr-head h1{margin:0;font-size:24px}.mr-muted{color:var(--text-secondary,#8893a9);font-size:13px}
+.mr-card{background:var(--surface,#1b2030);border:1px solid var(--border,#31384b);border-radius:16px;padding:20px;color:var(--text-primary,#eaf0ff)}
+.mr-filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
+.mr-filters label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--text-secondary,#8893a9)}
+.mr-filters input,.mr-filters select{background:var(--bg,#121725);color:inherit;border:1px solid var(--border,#31384b);border-radius:9px;padding:9px 10px}
+.mr-btn{background:#2563ff;color:#fff;border:0;border-radius:9px;padding:10px 15px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}
+.mr-btn.alt{background:transparent;border:1px solid var(--border,#31384b);color:inherit}
+.mr-row{display:flex;align-items:center;gap:14px;padding:13px 4px;border-top:1px solid var(--border,#2a3141)}
+.mr-row .dir{font-size:11px;font-weight:700;border-radius:20px;padding:4px 9px}
+.mr-row .in{background:#143c33;color:#34d399}.mr-row .out{background:#2b2550;color:#9cc2ff}
+.mr-row .num{font-weight:600}.mr-row audio{height:34px}
+.mr-row .meta{color:var(--text-secondary,#8893a9);font-size:12px}
+.mr-grow{flex:1}
+</style>
+<div class="mr-head">
+  <div><h1>Call Recordings — {{ customer.name }}</h1>
+  <p class="mr-muted">{{ customer.email }} · {{ customer.phone_number or 'No number' }} · every call is recorded and kept {{ keep_days }} days ({{ total }} saved, {{ total_mb }} MB)</p></div>
+  <a class="mr-btn alt" href="/customers/{{ customer.email|urlencode }}">← Back to customer</a>
+</div>
+<section class="mr-card">
+  <form class="mr-filters" method="get">
+    <label>Direction<select name="direction"><option value="">All</option>
+      <option value="incoming" {% if f_direction=='incoming' %}selected{% endif %}>Incoming</option>
+      <option value="outgoing" {% if f_direction=='outgoing' %}selected{% endif %}>Outgoing</option></select></label>
+    <label>Number<input name="number" value="{{ f_number }}" placeholder="digits"></label>
+    <label>Date<input type="date" name="date" value="{{ f_date }}"></label>
+    <button class="mr-btn" type="submit">Filter</button>
+    {% if f_direction or f_number or f_date %}<a class="mr-btn alt" href="/customers/{{ customer.email|urlencode }}/recordings">Clear</a>{% endif %}
+  </form>
+  {% if items %}
+    {% for r in items %}
+    <div class="mr-row">
+      <span class="dir {{ 'in' if r.direction=='incoming' else 'out' }}">{{ 'IN' if r.direction=='incoming' else 'OUT' }}</span>
+      <div><div class="num">{{ r.number }}</div><div class="meta">{{ r.when }} · {{ r.duration }}s · {{ r.size_kb }} KB</div></div>
+      <span class="mr-grow"></span>
+      <audio controls preload="none" src="/admin/monitor-recordings/{{ r.id }}/audio"></audio>
+      <a class="mr-btn alt" href="/admin/monitor-recordings/{{ r.id }}/audio?download=1">⬇</a>
+    </div>
+    {% endfor %}
+  {% else %}
+    <p class="mr-muted" style="padding:22px 0;text-align:center">No recordings{% if f_direction or f_number or f_date %} match these filters{% else %} yet. They appear here after the customer makes or receives calls{% endif %}.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,8 +1,8 @@
 {% extends "base.html" %}{% block title %}Customer — VoxsBridge{% endblock %}{% block content %}<style>
-.cm-head{display:flex;justify-content:space-between;align-items:center;margin:12px 0 24px;gap:15px}.cm-head h1{font-size:27px;margin:0}.cm-muted{color:var(--text-secondary,#8893a9)}.cm-card{background:var(--surface,#1b2030);border:1px solid var(--border,#31384b);border-radius:17px;padding:24px;margin-bottom:18px;color:var(--text-primary,#eaf0ff)}.cm-table{width:100%;border-collapse:collapse}.cm-table th{text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-secondary,#8893a9);padding:14px}.cm-table td{padding:15px 14px;border-top:1px solid var(--border,#31384b)}.cm-table small{display:block;color:var(--text-secondary,#8893a9);margin-top:4px}.cm-pill{display:inline-block;padding:5px 10px;border-radius:30px;background:rgba(37,99,255,.14);color:#6fb0ff;font-size:12px;font-weight:700}.cm-ok{color:#10b981;background:rgba(16,185,129,.12)}.cm-warn{color:#f59e0b;background:rgba(245,158,11,.12)}.cm-danger{color:#f87171;background:rgba(248,113,113,.12)}.cm-btn{background:#2563ff;color:white;border:0;border-radius:9px;padding:11px 17px;text-decoration:none;display:inline-block;cursor:pointer;font-weight:600}.cm-btn-alt{background:var(--surface-secondary,#242b3d);color:var(--text-primary,#eef);border:1px solid var(--border,#394155)}.cm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.cm-field{display:flex;flex-direction:column;gap:7px;margin-bottom:15px}.cm-field label{font-size:12px;color:var(--text-secondary,#9da7bb)}.cm-field input,.cm-field select,.cm-field textarea{background:var(--surface-secondary,#252c3d);color:var(--text-primary,#f5f7ff);border:1px solid var(--border,#394155);border-radius:9px;padding:12px;width:100%;box-sizing:border-box}.cm-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cm-metric{background:var(--surface-secondary,#252c3d);border-radius:12px;padding:18px}.cm-metric strong{display:block;font-size:20px}.cm-metric small{color:var(--text-secondary,#99a5bb)}.cm-hero{background:linear-gradient(105deg,#10172b,#10306e,#162a55);color:white;border-radius:18px;padding:24px;margin-bottom:20px}.cm-overlay{position:fixed;inset:0;background:#0008;z-index:200;display:none}.cm-overlay.open{display:block}.cm-drawer{position:fixed;right:0;top:0;bottom:0;width:min(440px,100vw);overflow:auto;background:var(--surface,#1c2436);color:var(--text-primary,#fff);z-index:201;padding:25px;box-sizing:border-box;transform:translateX(100%);transition:transform .2s;border-left:1px solid var(--border,#394155)}.cm-drawer.open{transform:translateX(0)}.cm-actions{display:flex;flex-wrap:wrap;gap:9px}.cm-actions form{display:inline}.cm-scroll{overflow:auto}.cm-drawer .cm-metrics{grid-template-columns:repeat(2,1fr)}@media(max-width:850px){.cm-grid,.cm-metrics{grid-template-columns:1fr 1fr}.cm-table{min-width:760px}}@media(max-width:550px){.cm-grid,.cm-metrics{grid-template-columns:1fr}}
+.cm-head{display:flex;justify-content:space-between;align-items:center;margin:12px 0 24px;gap:15px}.cm-head h1{font-size:27px;margin:0}.cm-muted{color:var(--text-secondary,#8893a9)}.cm-card{background:var(--surface,#1b2030);border:1px solid var(--border,#31384b);border-radius:17px;padding:24px;margin-bottom:18px;color:var(--text-primary,#eaf0ff)}.cm-table{width:100%;border-collapse:collapse}.cm-table th{text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-secondary,#8893a9);padding:14px}.cm-table td{padding:15px 14px;border-top:1px solid var(--border,#31384b)}.cm-table small{display:block;color:var(--text-secondary,#8893a9);margin-top:4px}.cm-pill{display:inline-block;padding:5px 10px;border-radius:30px;background:rgba(37,99,255,.14);color:#7fb2ff;font-size:12px;font-weight:700}.cm-ok{color:#10b981;background:rgba(16,185,129,.12)}.cm-warn{color:#f59e0b;background:rgba(245,158,11,.12)}.cm-danger{color:#f87171;background:rgba(248,113,113,.12)}.cm-btn{background:#2563ff;color:white;border:0;border-radius:9px;padding:11px 17px;text-decoration:none;display:inline-block;cursor:pointer;font-weight:600}.cm-btn-alt{background:var(--surface-secondary,#242b3d);color:var(--text-primary,#eef);border:1px solid var(--border,#394155)}.cm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.cm-field{display:flex;flex-direction:column;gap:7px;margin-bottom:15px}.cm-field label{font-size:12px;color:var(--text-secondary,#9da7bb)}.cm-field input,.cm-field select,.cm-field textarea{background:var(--surface-secondary,#252c3d);color:var(--text-primary,#f5f7ff);border:1px solid var(--border,#394155);border-radius:9px;padding:12px;width:100%;box-sizing:border-box}.cm-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cm-metric{background:var(--surface-secondary,#252c3d);border-radius:12px;padding:18px}.cm-metric strong{display:block;font-size:20px}.cm-metric small{color:var(--text-secondary,#99a5bb)}.cm-hero{background:linear-gradient(105deg,#10172b,#10306e,#162a55);color:white;border-radius:18px;padding:24px;margin-bottom:20px}.cm-overlay{position:fixed;inset:0;background:#0008;z-index:200;display:none}.cm-overlay.open{display:block}.cm-drawer{position:fixed;right:0;top:0;bottom:0;width:min(440px,100vw);overflow:auto;background:var(--surface,#1c2436);color:var(--text-primary,#fff);z-index:201;padding:25px;box-sizing:border-box;transform:translateX(100%);transition:transform .2s;border-left:1px solid var(--border,#394155)}.cm-drawer.open{transform:translateX(0)}.cm-actions{display:flex;flex-wrap:wrap;gap:9px}.cm-actions form{display:inline}.cm-scroll{overflow:auto}.cm-drawer .cm-metrics{grid-template-columns:repeat(2,1fr)}@media(max-width:850px){.cm-grid,.cm-metrics{grid-template-columns:1fr 1fr}.cm-table{min-width:760px}}@media(max-width:550px){.cm-grid,.cm-metrics{grid-template-columns:1fr}}
 </style>
-<div class="cm-head"><a href="/customers">← All Customers</a><div class="cm-actions"><a class="cm-btn" href="/invoices/new?customer={{ customer.email|urlencode }}">Create Invoice</a><a class="cm-btn cm-btn-alt" href="/invoices">Invoices</a></div></div>
-<div class="cm-hero"><h1>{{ customer.name }}</h1><p>{{ customer.email }}</p><div class="cm-metrics"><div class="cm-metric"><strong>{{ customer.phone_number or '—' }}</strong><small>Caller ID</small></div><div class="cm-metric"><strong>{{ customer.calls_month }}</strong><small>Calls This Month</small></div><div class="cm-metric"><strong>{{ (customer.talk_seconds or 0)//60 }}m</strong><small>Talk Time</small></div><div class="cm-metric"><strong>{{ customer.plan_renewal or '—' }}</strong><small>Next Renewal</small></div></div></div>
+<div class="cm-head"><a href="/customers">← All Customers</a><div class="cm-actions"><a class="cm-btn" href="/customers/{{ customer.email|urlencode }}/recordings">🎙 Recordings</a><a class="cm-btn" href="/invoices/new?customer={{ customer.email|urlencode }}">Create Invoice</a><a class="cm-btn cm-btn-alt" href="/invoices">Invoices</a></div></div>
+<div class="cm-hero"><h1>{{ customer.name }}</h1><p>{{ customer.email }}</p><div class="cm-metrics">{% if customer.collected_usd and customer.collected_usd|float > 0 %}<div class="cm-metric"><strong>${{ '{:,.2f}'.format(customer.collected_usd|float) }} ≈ Rs. {{ '{:,.0f}'.format((customer.collected|float)) }}</strong><small>Paid in USD · shown in PKR</small></div>{% endif %}<div class="cm-metric"><strong>{{ 'Unlimited' if customer.sms_credits is none else customer.sms_credits }}</strong><small>SMS left</small></div><div class="cm-metric"><strong>{{ customer.phone_number or '—' }}</strong><small>Caller ID</small></div><div class="cm-metric"><strong>{{ customer.calls_month }}</strong><small>Calls (plan cycle)</small></div><div class="cm-metric"><strong>{{ (customer.talk_seconds or 0)//60 }}m</strong><small>Talk Time (plan cycle)</small></div><div class="cm-metric"><strong>{{ customer.plan_renewal or '—' }}</strong><small>Next Renewal</small></div></div><p class="cm-muted" style="margin:12px 0 0;font-size:12px">Usage period: {{ customer.cycle_start }} → {{ customer.cycle_end }} (30 days from plan start / last renewal; resets on renewal)</p></div>
 {% if request.query_params.get('saved') %}<p class="cm-pill cm-ok">Customer updated</p>{% endif %}
 {% if request.query_params.get('number_updated') %}<p class="cm-pill cm-ok">Caller ID updated successfully.</p>{% endif %}
 {% set prov = customer.provider or 'telnyx' %}
@@ -10,28 +10,29 @@
 <section class="cm-card">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
     <div><h2 style="margin:0">Estimated Provider Cost</h2>
-    <p class="cm-muted" style="margin:6px 0 0;font-size:13px">Based on this customer's calls, {{ prov|capitalize }} rates (incoming ${{ '%.4f'|format(costs.rates[prov ~ '_in']) }}/min, outgoing ${{ '%.4f'|format(costs.rates[prov ~ '_out']) }}/min). Change rates in Settings.</p></div>
+    <p class="cm-muted" style="margin:6px 0 0;font-size:13px">Based on this customer's calls and the per-country {{ provider_label(customer) }} rates (each call priced by the country it went to). Change rates in Settings.</p></div>
     <span class="dn-pill {{ prov }}">{{ prov|capitalize }}</span>
   </div>
   <div class="cm-metrics" style="margin-top:16px">
-    {% for key,label in [('today','Today'),('week','This Week'),('month','This Month')] %}
+    {% for key,label in [('today','Today'),('week','This Week'),('month','This Plan Cycle')] %}
     <div class="cm-metric"><small>{{ label }}</small><strong>${{ '%.2f'|format(costs[key].usd) }}</strong><small style="display:block">≈ Rs. {{ '{:,.0f}'.format(costs[key].pkr) }} · {{ costs[key].calls }} calls</small><small style="display:block">↙ In {{ costs[key].in_min }} min · ↗ Out {{ costs[key].out_min }} min</small></div>
     {% endfor %}
-    <div class="cm-metric"><small>Margin this month</small><strong>Rs. {{ '{:,.0f}'.format(((customer.last_paid_amount or 0)|float) - costs.month.pkr) }}</strong><small>Monthly revenue minus est. cost</small></div>
+    <div class="cm-metric"><small>Margin this plan cycle</small><strong>Rs. {{ '{:,.0f}'.format(((customer.last_paid_amount or 0)|float) - costs.month.pkr) }}</strong><small>Paid price minus est. cost ({{ customer.cycle_start }} → {{ customer.cycle_end }})</small></div>
   </div>
 </section>
 {% endif %}
 <section class="cm-card" style="margin-bottom:18px">
   <h2>Calling Provider &amp; Number</h2>
-  <p class="cm-muted">Current: <strong>{{ customer.phone_number or 'Not assigned' }}</strong> on <span class="dn-pill {{ prov }}">{{ prov|capitalize }}</span></p>
+  <p class="cm-muted">Current: <strong>{{ customer.phone_number or 'Not assigned' }}</strong> on <span class="dn-pill {{ prov }}">{{ provider_label(customer) }}</span></p>
   <form method="post" action="/customers/{{ customer.email|urlencode }}/change-number" id="numberForm"
         onsubmit="return confirm('Change this user\'s provider/Caller ID? Future calls will use the selected number. The user should log out and back in.');">
     <div class="cm-grid">
       <div class="cm-field"><label for="numProvider">Provider</label>
-        <select name="provider" id="numProvider">
-          <option value="telnyx" {% if prov == 'telnyx' %}selected{% endif %}>Telnyx (main)</option>
-          <option value="twilio" {% if prov == 'twilio' %}selected{% endif %}{% if not twilio_ready %} disabled{% endif %}>Twilio (backup){% if not twilio_ready %} — not configured{% endif %}</option>
+        {% set cur_line = user_line(customer) %}
+        <select id="numProvider">
+          {% for l in calling_lines() %}<option value="{{ l.value }}" data-provider="{{ l.provider }}" data-account="{{ l.account }}"{% if l.value == cur_line %} selected{% endif %}{% if not l.ready %} disabled{% endif %}>{{ l.label }}{% if not l.ready %} — not set up{% endif %}</option>{% endfor %}
         </select>
+        <input type="hidden" name="provider" id="numProviderValue" value="{{ prov }}">
       </div>
       <div class="cm-field"><label for="numSelect" id="numLabel">Available number</label>
         <select name="phone_number" id="numSelect" required><option value="">Loading numbers...</option></select>
@@ -49,18 +50,21 @@
   const message = document.getElementById('numMessage');
   const submit = document.getElementById('numSubmit');
   const currentNumber = {{ (customer.phone_number or '')|tojson }};
-  const currentProvider = {{ prov|tojson }};
+  const currentLine = {{ user_line(customer)|tojson }};
   const myEmail = {{ customer.email|lower|tojson }};
+  const myCompany = {{ (customer.account_id|string if customer.account_id else '')|tojson }};
   let seq = 0;
   async function load() {
     const mine = ++seq;
-    const name = provider.value === 'twilio' ? 'Twilio' : 'Telnyx';
+    const opt = provider.selectedOptions[0];
+    const name = opt.textContent.trim();
+    document.getElementById('numProviderValue').value = opt.dataset.provider;
     document.getElementById('numLabel').textContent = 'Available ' + name + ' number';
     select.replaceChildren(new Option('Loading ' + name + ' numbers...', ''));
     submit.disabled = true;
     message.textContent = '';
     try {
-      const res = await fetch('/api/admin/caller-ids?provider=' + provider.value, {cache: 'no-store'});
+      const res = await fetch('/api/admin/caller-ids?provider=' + opt.dataset.provider + '&account=' + opt.dataset.account, {cache: 'no-store'});
       const data = await res.json().catch(() => ({}));
       if (mine !== seq) return;
       if (!res.ok) throw new Error(data.detail || ('Could not load ' + name + ' numbers'));
@@ -68,9 +72,12 @@
       let selectable = 0;
       (data.numbers || []).forEach((item) => {
         const others = (item.assigned_to || []).filter((u) => String(u.email).toLowerCase() !== myEmail);
-        const isCurrent = item.number === currentNumber && provider.value === currentProvider;
-        const opt = new Option(item.number + (isCurrent ? ' (Current)' : others.length ? ' — assigned to ' + others.map((u) => u.last_name).join(', ') : ''), item.number);
-        opt.disabled = others.length > 0;
+        const isCurrent = item.number === currentNumber && provider.value === currentLine;
+        const shareable = others.length > 0 && myCompany && others.every((u) => u.account_id === myCompany);
+        const opt = new Option(item.number + (isCurrent ? (others.length ? ' (Current · shared with ' + others.map((u) => u.last_name).join(', ') + ')' : ' (Current)')
+          : shareable ? ' — share with ' + others.map((u) => u.last_name).join(', ') + ' (same company)'
+          : others.length ? ' — assigned to ' + others.map((u) => u.last_name).join(', ') : ''), item.number);
+        opt.disabled = others.length > 0 && !shareable;
         if (isCurrent) opt.selected = true;
         if (!opt.disabled) selectable++;
         select.add(opt);
@@ -87,40 +94,47 @@
   load();
 })();
 </script>
-{% set sms_limit = customer.sms_limit or 0 %}{% set sms_used = customer.sms_used or 0 %}{% set sms_left = [sms_limit - sms_used, 0]|max %}
-<section class="cm-card" id="sms">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-    <div><h2 style="margin:0">Text Messages (SMS)</h2>
-    <p class="cm-muted" style="margin:6px 0 0;font-size:13px">Only enabled users can text. Sent and received messages both count. 1 message = up to 160 characters (70 with Urdu/emoji).</p></div>
-    <span class="cm-pill {% if customer.sms_enabled %}cm-ok{% endif %}">{{ 'SMS ON' if customer.sms_enabled else 'SMS OFF' }}</span>
-  </div>
-  {% if request.query_params.get('sms_saved') %}<p class="cm-pill cm-ok" style="margin-top:12px">SMS settings saved.</p>{% endif %}
-  <div class="cm-metrics" style="margin-top:16px">
-    <div class="cm-metric"><strong>{{ sms_limit }}</strong><small>Allowed messages</small></div>
-    <div class="cm-metric"><strong>{{ sms_used }}</strong><small>Used (sent + received)</small></div>
-    <div class="cm-metric"><strong>{{ sms_left }}</strong><small>Remaining</small></div>
-  </div>
-  <div style="height:8px;border-radius:8px;background:var(--bg-hover,#24314b);overflow:hidden;margin:14px 0 18px"><i style="display:block;height:100%;width:{{ (sms_used * 100 // sms_limit) if sms_limit else 0 }}%;max-width:100%;background:linear-gradient(90deg,#00c6ff,#2563ff)"></i></div>
-  <form method="post" action="/customers/{{ customer.email|urlencode }}/sms">
-    <div class="cm-grid">
-      <div class="cm-field"><label for="smsEnabled">Texting</label>
-        <select name="sms_enabled" id="smsEnabled">
-          <option value="true" {% if customer.sms_enabled %}selected{% endif %}>Enabled — user can send &amp; receive</option>
-          <option value="false" {% if not customer.sms_enabled %}selected{% endif %}>Disabled</option>
-        </select></div>
-      <div class="cm-field"><label for="smsLimit">Allowed messages (total)</label>
-        <input type="number" name="sms_limit" id="smsLimit" min="0" max="1000000" value="{{ sms_limit }}" required></div>
-      <div class="cm-field"><label for="smsAdd">Add more messages (top-up)</label>
-        <input type="number" name="add_messages" id="smsAdd" min="0" max="1000000" value="0"></div>
-      <div class="cm-field"><label for="smsReset">Used counter</label>
-        <select name="reset_used" id="smsReset">
-          <option value="">Keep ({{ sms_used }} used)</option>
-          <option value="1">Reset to 0 (new month / new package)</option>
-        </select></div>
-    </div>
-    {% if not customer.phone_number %}<p class="cm-muted" style="font-size:12px">This user has no number yet — assign a number above before enabling SMS.</p>{% endif %}
-    <button class="cm-btn" type="submit">Save SMS Settings</button>
+<div class="cm-grid"><section class="cm-card"><h2>Business & Account Details</h2><form method="post" action="/customers/{{ customer.email|urlencode }}/update"><div class="cm-field"><label>Customer / Business Name</label><input name="name" value="{{ customer.name }}" required></div><div class="cm-field"><label>Login Email (read-only)</label><input value="{{ customer.email }}" readonly></div><div class="cm-field"><label>Plan</label><input name="plan_name" value="{{ customer.plan_name or '' }}"></div><div class="cm-field"><label>Paid Price / Monthly Revenue (PKR)</label><input name="monthly_amount" type="number" min="0" value="{{ customer.last_paid_amount or 0 }}"></div><div class="cm-field"><label>Renewal Date</label><input name="plan_renewal" type="date" value="{{ customer.plan_renewal or '' }}"></div><div class="cm-field"><label>Account Status</label><select name="is_active"><option value="true" {% if customer.is_active %}selected{% endif %}>Active</option><option value="false" {% if not customer.is_active %}selected{% endif %}>Disabled</option></select></div><div class="cm-field"><label>Contact Name</label><input name="contact_name" value="{{ customer.contact_name or '' }}"></div><div class="cm-field"><label>Contact Phone / WhatsApp</label><input name="contact_phone" value="{{ customer.contact_phone or '' }}"></div><div class="cm-field"><label>Address</label><input name="contact_address" value="{{ customer.contact_address or '' }}"></div><div class="cm-field"><label>Notes</label><textarea name="customer_notes" rows="3">{{ customer.customer_notes or '' }}</textarea></div><div class="cm-field"><label>New Password (leave blank to keep unchanged)</label><input type="password" name="new_password" minlength="12" autocomplete="new-password"></div><button class="cm-btn">Save Changes</button></form></section>
+<section><div class="cm-card"><h2>Renewal & Payments</h2><p>Collected to date: <strong>PKR {{ '{:,.0f}'.format(customer.collected or 0) }}</strong></p><p>Last payment: {{ customer.last_payment_at or '—' }}</p><h3>Record Payment</h3><form method="post" action="/customers/{{ customer.email|urlencode }}/payment"><div class="cm-field"><label>Amount (PKR)</label><input type="number" name="amount" min="0" value="0"></div><div class="cm-field"><label>Amount (USD)</label><input type="number" name="amount_usd" min="0" step="0.01" placeholder="e.g. 29.00"></div><div class="cm-field"><label>Payment Method</label><input name="method" value="Manual"></div><div class="cm-field"><label>Reference</label><input name="reference"></div><button class="cm-btn">Record Payment</button></form></div><div class="cm-card cm-scroll"><h2>Payment History</h2><table class="cm-table"><tr><th>Date</th><th>PKR</th><th>USD</th><th>Method</th><th>Status</th><th></th></tr>{% for payment in payments %}<tr><td>{{ payment.paid_at or '—' }}</td><td>{% if payment.amount_pkr %}PKR {{ '{:,.0f}'.format(payment.amount_pkr) }}{% else %}—{% endif %}</td><td>{% if payment.amount_usd %}${{ '{:,.2f}'.format(payment.amount_usd) }}{% else %}—{% endif %}</td><td>{{ payment.method or '—' }}{% if payment.reference %}<small> {{ payment.reference }}</small>{% endif %}</td><td>{{ payment.status }}</td><td style="white-space:nowrap"><button type="button" class="cm-btn cm-btn-alt" style="padding:7px 12px" data-pay-edit="{{ loop.index0 }}">Edit</button></td></tr>{% else %}<tr><td colspan="6">No payments</td></tr>{% endfor %}</table></div><div class="cm-card"><h3>Delete Customer</h3><p class="cm-muted">Disables login and releases Caller ID. Payment history stays available.</p><form action="/users/delete" method="post" onsubmit="return confirm('Disable this customer?')"><input type="hidden" name="email" value="{{ customer.email }}"><button class="cm-btn cm-btn-alt" style="color:#f87171">Delete / Disable Customer</button></form></div></section></div>
+<div class="cm-overlay" id="payOverlay"></div>
+<div class="cm-drawer" id="payDrawer" style="max-width:440px">
+  <h2 style="margin-top:0">Edit paid price</h2>
+  <p class="cm-muted" style="margin-top:-6px">Changes this payment record. Dashboard earnings and the customer's paid price update too.</p>
+  <form method="post" id="payEditForm" action="/customers/{{ customer.email|urlencode }}/payment/edit">
+    <input type="hidden" name="pid" id="payPid"><input type="hidden" name="old_pkr" id="payOld">
+    <div class="cm-field"><label>Amount (PKR)</label><input type="number" name="amount" id="payPkr" min="0" step="1" value="0"></div>
+    <div class="cm-field"><label>Amount (USD)</label><input type="number" name="amount_usd" id="payUsd" min="0" step="0.01" placeholder="e.g. 29.00"></div>
+    <div class="cm-field"><label>Payment Method</label><input name="method" id="payMethod"></div>
+    <div class="cm-field"><label>Reference</label><input name="reference" id="payRef"></div>
+    <div class="cm-actions"><button class="cm-btn" type="submit">Save price</button><button class="cm-btn cm-btn-alt" type="button" id="payCancel">Cancel</button></div>
   </form>
-</section>
-<div class="cm-grid"><section class="cm-card"><h2>Business & Account Details</h2><form method="post" action="/customers/{{ customer.email|urlencode }}/update"><div class="cm-field"><label>Customer / Business Name</label><input name="name" value="{{ customer.name }}" required></div><div class="cm-field"><label>Login Email (read-only)</label><input value="{{ customer.email }}" readonly></div><div class="cm-field"><label>Plan</label><input name="plan_name" value="{{ customer.plan_name or '' }}"></div><div class="cm-field"><label>Monthly Revenue (PKR)</label><input name="monthly_amount" type="number" min="0" value="{{ customer.last_paid_amount or 0 }}"></div><div class="cm-field"><label>Renewal Date</label><input name="plan_renewal" type="date" value="{{ customer.plan_renewal or '' }}"></div><div class="cm-field"><label>Account Status</label><select name="is_active"><option value="true" {% if customer.is_active %}selected{% endif %}>Active</option><option value="false" {% if not customer.is_active %}selected{% endif %}>Disabled</option></select></div><div class="cm-field"><label>Contact Name</label><input name="contact_name" value="{{ customer.contact_name or '' }}"></div><div class="cm-field"><label>Contact Phone / WhatsApp</label><input name="contact_phone" value="{{ customer.contact_phone or '' }}"></div><div class="cm-field"><label>Address</label><input name="contact_address" value="{{ customer.contact_address or '' }}"></div><div class="cm-field"><label>Notes</label><textarea name="customer_notes" rows="3">{{ customer.customer_notes or '' }}</textarea></div><div class="cm-field"><label>New Password (leave blank to keep unchanged)</label><input type="password" name="new_password" minlength="12" autocomplete="new-password"></div><button class="cm-btn">Save Changes</button></form></section>
-<section><div class="cm-card"><h2>Renewal & Payments</h2><p>Collected to date: <strong>PKR {{ '{:,.0f}'.format(customer.collected or 0) }}</strong></p><p>Last payment: {{ customer.last_payment_at or '—' }}</p><h3>Record Payment</h3><form method="post" action="/customers/{{ customer.email|urlencode }}/payment"><div class="cm-field"><label>Amount (PKR)</label><input type="number" name="amount" min="1" required></div><div class="cm-field"><label>Payment Method</label><input name="method" value="Manual"></div><div class="cm-field"><label>Reference</label><input name="reference"></div><button class="cm-btn">Record Payment</button></form></div><div class="cm-card cm-scroll"><h2>Payment History</h2><table class="cm-table"><tr><th>Date</th><th>Amount</th><th>Status</th></tr>{% for payment in payments %}<tr><td>{{ payment.paid_at or '—' }}</td><td>PKR {{ '{:,.0f}'.format(payment.amount_pkr) }}</td><td>{{ payment.status }}</td></tr>{% else %}<tr><td colspan="3">No payments</td></tr>{% endfor %}</table></div><div class="cm-card"><h3>Delete Customer</h3><p class="cm-muted">Disables login and releases Caller ID. Payment history stays available.</p><form action="/users/delete" method="post" onsubmit="return confirm('Disable this customer?')"><input type="hidden" name="email" value="{{ customer.email }}"><button class="cm-btn cm-btn-alt" style="color:#f87171">Delete / Disable Customer</button></form></div></section></div>{% endblock %}
+  <form method="post" id="payDelForm" action="/customers/{{ customer.email|urlencode }}/payment/delete" style="margin-top:18px">
+    <input type="hidden" name="pid" id="payDelPid"><input type="hidden" name="old_pkr" id="payDelOld">
+    <button class="cm-btn cm-btn-alt" type="submit" style="color:#f87171">Delete this payment</button>
+  </form>
+</div>
+<script id="payRows" type="application/json">{{ payments_json|safe }}</script>
+<script>
+(function(){
+  var rows=JSON.parse(document.getElementById('payRows').textContent);
+  var d=document.getElementById('payDrawer'),o=document.getElementById('payOverlay');
+  function close(){d.classList.remove('open');o.classList.remove('open');}
+  document.querySelectorAll('[data-pay-edit]').forEach(function(b){b.addEventListener('click',function(){
+    var r=rows[+b.dataset.payEdit];if(!r)return;
+    document.getElementById('payPid').value=document.getElementById('payDelPid').value=r.pid;
+    document.getElementById('payOld').value=document.getElementById('payDelOld').value=r.pkr||0;
+    document.getElementById('payPkr').value=r.pkr||0;
+    document.getElementById('payUsd').value=r.usd||'';
+    document.getElementById('payMethod').value=r.method||'';
+    document.getElementById('payRef').value=r.reference||'';
+    d.classList.add('open');o.classList.add('open');
+  });});
+  o.addEventListener('click',close);document.getElementById('payCancel').addEventListener('click',close);
+  document.getElementById('payDelForm').addEventListener('submit',async function(e){
+    if(this.dataset.ok)return;e.preventDefault();var f=this;
+    var ok=window.dnConfirmShared?await window.dnConfirmShared('Delete this payment record? Earnings totals will drop by this amount.','Yes, delete payment','Delete payment?'):confirm('Delete this payment?');
+    if(ok){f.dataset.ok='1';f.submit();}
+  });
+})();
+</script>
+{% endblock %}

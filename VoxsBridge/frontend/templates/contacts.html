@@ -14,7 +14,7 @@
             <span class="pip blue">{{ (c.name or '?')[0]|upper }}</span>
             <span class="contact-meta log-main"><strong>{{ c.name }}</strong><small>{{ c.number }}</small></span>
             <span class="row-actions">
-                <a class="module-btn contact-call" href="/dialer?number={{ c.number|urlencode }}&amp;call=1" aria-label="Call {{ c.name }}">☎ Call</a>
+                <a class="module-btn contact-call" href="/dialer?number={{ c.number|urlencode }}&amp;call=1" aria-label="Call {{ c.name }}">☎ Call</a>{% if has_sms(user) %}<a class="module-btn" href="/messages?to={{ c.number|urlencode }}" aria-label="Text {{ c.name }}">💬 Text</a>{% endif %}
                 <button type="button" class="icon-btn" onclick="deleteContact(this)" title="Delete contact" aria-label="Delete {{ c.name }}">🗑</button>
             </span>
         </div>

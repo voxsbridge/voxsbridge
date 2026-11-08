@@ -9,16 +9,55 @@
     <p style="margin-top:12px;"><span class="muted">Plan renewal</span><br><strong>{{ plan.plan_renewal }}</strong> · {{ plan.days_left }} days left</p>
     <p style="margin-top:18px;"><a href="/logout" class="btn-blue">Log out</a></p>
 </section>
+<section class="panel profile-panel" id="profile" style="max-width:520px;margin-top:18px;">
+    <h2>My profile</h2>
+    {% if profile_msg %}<div class="success-msg">{{ profile_msg }}</div>{% endif %}
+    {% if profile_error %}<div class="error-msg profile-error">{{ profile_error }}</div>{% endif %}
+    <form method="post" action="/settings/profile" class="profile-form">
+        <label>Name<input name="name" value="{{ user.name }}" required minlength="2" maxlength="120" autocomplete="name"></label>
+        <button class="btn btn-primary" type="submit">Save name</button>
+    </form>
+    {% if not user.is_demo %}
+    <h3 style="margin:22px 0 4px;">Change password</h3>
+    <p class="muted" style="margin:0 0 10px;font-size:13px;">At least 12 characters. Other devices will be signed out.</p>
+    <form method="post" action="/settings/password" class="profile-form" id="pwForm">
+        <label>Current password<input type="password" name="current_password" required autocomplete="current-password"></label>
+        <label>New password<input type="password" name="new_password" id="pwNew" required minlength="12" maxlength="200" autocomplete="new-password"></label>
+        <label>Confirm new password<input type="password" name="confirm_password" id="pwConfirm" required minlength="12" maxlength="200" autocomplete="new-password"></label>
+        <label class="profile-show"><input type="checkbox" id="pwShow"> Show passwords</label>
+        <button class="btn btn-primary" type="submit">Change password</button>
+    </form>
+    {% endif %}
+</section>
+<style>
+.profile-form{display:flex;flex-direction:column;gap:12px;margin-top:10px}
+.profile-form label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-secondary)}
+.profile-form input:not([type=checkbox]){background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:11px 12px;font-size:14px}
+.profile-form .profile-show{flex-direction:row;align-items:center;gap:8px}
+.profile-form button{align-self:flex-start}
+.profile-error{background:rgba(225,29,72,.12);border:1px solid rgba(251,113,133,.5);color:#fda4af;border-radius:10px;padding:10px 12px;margin-bottom:6px}
+</style>
+<script>
+(function(){
+  const show=document.getElementById('pwShow'); if(!show) return;
+  show.addEventListener('change',()=>document.querySelectorAll('#pwForm input[type=password],#pwForm input[data-pw]').forEach(i=>{i.dataset.pw='1';i.type=show.checked?'text':'password';}));
+  document.getElementById('pwForm').addEventListener('submit',e=>{const a=document.getElementById('pwNew').value,b=document.getElementById('pwConfirm').value;if(a!==b){e.preventDefault();alert('The two new passwords do not match');}});
+})();
+</script>
 {% if user.role == 'admin' %}
 <section class="panel" style="max-width:720px;margin-top:18px;">
     <h2>Provider Rates (for estimated cost)</h2>
-    <p class="muted" style="margin-bottom:14px">USD per minute. Each call is rounded up to whole minutes. Check your Telnyx and Twilio pricing pages for the countries you call most.</p>
+    <p class="muted" style="margin-bottom:14px">USD per minute, by country. Outgoing calls use the country of the dialed number, incoming calls the country of your own number. Each call is rounded up to whole minutes. Check your Telnyx and Twilio pricing pages and adjust.</p>
     {% if saved %}<div class="success-msg">Rates saved.</div>{% endif %}
     <form method="post" action="/settings/rates" class="rates-form">
-        <label>Telnyx — outgoing ($/min)<input type="number" name="telnyx_out" step="0.0001" min="0" max="5" value="{{ rates.telnyx_out }}" required></label>
-        <label>Telnyx — incoming ($/min)<input type="number" name="telnyx_in" step="0.0001" min="0" max="5" value="{{ rates.telnyx_in }}" required></label>
-        <label>Twilio — outgoing ($/min)<input type="number" name="twilio_out" step="0.0001" min="0" max="5" value="{{ rates.twilio_out }}" required></label>
-        <label>Twilio — incoming ($/min)<input type="number" name="twilio_in" step="0.0001" min="0" max="5" value="{{ rates.twilio_in }}" required></label>
+        <div class="rate-grid">
+            <span></span><strong>Telnyx out</strong><strong>Telnyx in</strong><strong>Twilio out</strong><strong>Twilio in</strong>
+            {% for zone, zlabel in rate_zones %}{% set sfx = '' if zone == 'us' else '_' ~ zone %}
+            <span>{{ zlabel }}</span>
+            {% for key in ['telnyx_out', 'telnyx_in', 'twilio_out', 'twilio_in'] %}<input type="number" name="{{ key ~ sfx }}" aria-label="{{ key ~ sfx }}" step="0.0001" min="0" max="5" value="{{ rates[key ~ sfx] }}" required>{% endfor %}
+            {% endfor %}
+        </div>
+        <label>Twilio browser (Client) leg — added to every Twilio call ($/min)<input type="number" name="twilio_client" step="0.0001" min="0" max="5" value="{{ rates.twilio_client }}" required></label>
         <label>1 USD = PKR<input type="number" name="usd_to_pkr" step="0.01" min="1" max="1000" value="{{ rates.usd_to_pkr }}" required></label>
         <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" type="submit">Save Rates</button></div>
     </form>
@@ -30,4 +69,5 @@
     <div class="dn-detail"><span>Public URL for webhooks</span><strong>{{ public_base_url }}</strong></div>
 </section>
 {% endif %}
+<style>.rate-grid{grid-column:1/-1;display:grid;grid-template-columns:1.3fr repeat(4,1fr);gap:8px;align-items:center;font-size:13px}.rate-grid strong{font-size:11px;color:var(--muted,#8aa0c0);text-transform:uppercase;letter-spacing:.04em}.rate-grid input{width:100%;box-sizing:border-box}@media(max-width:640px){.rate-grid{grid-template-columns:1fr 1fr}.rate-grid>span{grid-column:1/-1}.rate-grid strong{display:none}}</style>
 {% endblock %}

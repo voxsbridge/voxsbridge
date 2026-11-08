@@ -15,7 +15,7 @@
 <div class="center-card">
     <div class="warn-ico">🔒</div>
     <h2>Upgrade Required</h2>
-    <p>Campaigns are part of the $25 upgrade, together with call recording. Ask your admin to unlock this account.</p>
+    <p>Campaigns &amp; Power Dialer is an add-on. Ask your admin to enable it for this account.</p>
 </div>
 {% elif campaigns %}
 <div class="stack">
@@ -34,7 +34,7 @@ async function newCampaign() {
     if (!name) return;
     const numbers = prompt('Numbers, separated by commas');
     const res = await fetch('/api/campaigns', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, numbers: (numbers||'').split(',').map(s => s.trim()).filter(Boolean)})});
-    if (!res.ok) { alert('Campaigns need the $25 upgrade.'); return; }
+    if (!res.ok) { alert('Campaigns & Power Dialer is an add-on. Ask your admin to enable it.'); return; }
     location.reload();
 }
 </script>

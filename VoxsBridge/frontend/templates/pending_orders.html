@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Pending website orders — VoxsBridge{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Pending website orders</h1><p class="muted">Accounts created from the marketing website that are waiting for payment (bank transfer or crypto). A pending account cannot log in. If no payment is confirmed before the timer ends, the pending users and the reserved numbers are deleted automatically.</p></div>
+</div>
+{% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+{% if done == 'paid' %}<div class="alert alert-ok" role="status">Payment recorded. The accounts are active with a 30-day plan.</div>{% endif %}
+{% if done == 'cancelled' %}<div class="alert alert-ok" role="status">Order cancelled. Pending users and the number hold were removed.</div>{% endif %}
+
+<section class="panel">
+  <h2>Waiting for payment</h2>
+  {% if orders %}
+  <div class="table-scroll"><table class="modern-table">
+    <thead><tr><th>Order</th><th>Customer</th><th>Users &amp; numbers</th><th>Amount</th><th>Time left</th><th>Mark as paid</th></tr></thead>
+    <tbody>
+    {% for o in orders %}
+    <tr>
+      <td><strong>{{ o.ref }}</strong><small>{{ o.plan_name }}</small><small><span class="dn-pill warn">Self-signup (website order)</span></small><small>Pay by: {{ {'bank':'Bank transfer','usdt':'Crypto (USDT)','stripe':'Card'}.get(o.payment_method, o.payment_method) }}</small></td>
+      <td>{{ o.company_name }}<small>{{ o.owner_email }}</small>{% if o.whatsapp %}<small><a href="https://wa.me/{{ o.whatsapp|replace('+','')|replace(' ','') }}" target="_blank" rel="noopener">WhatsApp {{ o.whatsapp }}</a></small>{% endif %}</td>
+      <td>{% for u in o.users %}<div>{{ u.name }} <small>{{ u.email }}</small> &middot; <strong>{{ u.signup_number or 'no number' }}</strong></div>{% endfor %}</td>
+      <td>${{ '%.2f'|format(o.amount_usd|float) }}</td>
+      <td>{% if o.minutes_left > 0 %}<span class="dn-pill ok">{{ o.minutes_left }} min</span>{% else %}<span class="dn-pill warn">expiring</span>{% endif %}</td>
+      <td>
+        <form method="post" action="/users/pending/{{ o.ref }}/paid" style="display:grid;gap:6px;min-width:190px">
+          <label>Amount received (USD)<input name="amount_usd" type="number" step="0.01" min="0" value="{{ '%.2f'|format(o.amount_usd|float) }}" required></label>
+          <label>Method<select name="method"><option value="bank" {% if o.payment_method=='bank' %}selected{% endif %}>Bank transfer</option><option value="usdt" {% if o.payment_method=='usdt' %}selected{% endif %}>Crypto (USDT)</option><option value="stripe" {% if o.payment_method=='stripe' %}selected{% endif %}>Card</option><option value="other">Other</option></select></label>
+          <label>Reference<input name="reference" placeholder="Bank ref / TX hash" maxlength="120"></label>
+          <button class="btn btn-primary" type="submit" onclick="return confirm('Activate {{ o.ref }} now? The 30-day plan starts today.')">Mark as paid &amp; activate</button>
+        </form>
+        <form method="post" action="/users/pending/{{ o.ref }}/cancel" onsubmit="return confirm('Delete this pending order and release its numbers?')" style="margin-top:6px"><button class="btn" type="submit">Cancel order</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted">No pending website orders.</p>{% endif %}
+</section>
+
+<section class="panel" style="margin-top:18px">
+  <h2>Website accounts without a number</h2>
+  <p class="muted">These accounts were paid for, but no number could be assigned (for example it was taken, or the provider returned an error). Assign a Caller ID from User Accounts &rarr; Edit. The customer sees a notice to contact us on WhatsApp.</p>
+  {% if numberless %}
+  <div class="table-scroll"><table class="modern-table">
+    <thead><tr><th>User</th><th>Email</th><th>Order</th></tr></thead>
+    <tbody>{% for u in numberless %}<tr><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{{ u.signup_ref }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="muted">None.</p>{% endif %}
+</section>
+{% endblock %}

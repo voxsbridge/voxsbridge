@@ -78,6 +78,29 @@
     display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
 }
 .rail-label { font-size:12px; color:var(--text-muted); }
+/* 2026-10-25: multiple lines, conference, transfer */
+#transferView[hidden], #lineBar[hidden], #xferBar[hidden], #inCallMsg[hidden], #inCallView .incall-btn[hidden] { display: none !important; }
+.incall-msg { width: 100%; box-sizing: border-box; background: rgba(225, 29, 72, .12); border: 1px solid rgba(251, 113, 133, .5); color: #fda4af; border-radius: 12px; padding: 9px 12px; margin: -6px 0 14px; font-size: 13px; text-align: center; line-height: 1.45; }
+#transferView { width: 100%; }
+.line-bar { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin: -8px 0 16px; font-size: 12px; color: var(--text-muted); }
+.line-bar .line-chip { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 999px; padding: 5px 10px; }
+.line-bar button, .calls-actions button, .xfer-bar button { background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+.line-bar button.primary, .calls-actions button.primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.xfer-bar { width: 100%; box-sizing: border-box; background: rgba(29,78,216, .12); border: 1px solid rgba(37,99,255, .45); border-radius: 12px; padding: 10px 12px; margin: -6px 0 14px; font-size: 13px; text-align: center; line-height: 1.45; }
+.xfer-bar strong { display: block; margin-bottom: 2px; }
+.xfer-bar .xfer-actions { margin-top: 8px; display: flex; justify-content: center; gap: 8px; }
+.xfer-list { display: flex; flex-direction: column; gap: 2px; max-height: 330px; overflow-y: auto; margin-bottom: 12px; }
+.xfer-agent { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; border-radius: 10px; padding: 9px 8px; cursor: pointer; color: var(--text-primary); text-align: left; }
+.xfer-agent:hover:not([disabled]) { background: var(--bg-secondary); }
+.xfer-agent[disabled] { opacity: .5; cursor: not-allowed; }
+.xfer-agent .call-avatar { background: #2563ff; color: #fff; font-weight: 700; font-size: 15px; }
+.xfer-agent .call-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.xfer-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; display: inline-block; }
+.xfer-dot.free { background: #22c55e; } .xfer-dot.busy { background: #f59e0b; }
+.xfer-empty { color: var(--text-muted); font-size: 13px; padding: 10px 4px; }
+.xfer-number { width: 100%; background: var(--bg-secondary); border: 1px dashed var(--border); color: var(--text-primary); border-radius: 10px; padding: 11px; cursor: pointer; font-size: 13px; }
+.calls-actions { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+.call-row .call-swap { background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 999px; padding: 6px 11px; font-size: 12px; cursor: pointer; }
 .dial-rail {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -96,17 +119,17 @@
 <aside class="dial-rail" id="dialRail">
         <button type="button" class="rail-close" id="railClose" aria-label="Hide dialer"><span aria-hidden="true">⌄</span> Hide dialer</button>
         <div class="your-number">
-            <span class="rail-label">Calling from</span><strong class="rail-own-number">{{ user.phone_number }}</strong>
+            <span class="rail-label">Your number</span><strong class="rail-own-number">{{ user.phone_number }}</strong>
         </div>
         {% set plan = plan_status(user) %}
         {% set no_line = (not user.phone_number) and user.role != 'admin' %}
-        <div id="dialerConfig" hidden data-provider="{{ user.provider or 'telnyx' }}" data-from="{{ user.phone_number or '' }}" data-recording="{{ 1 if has_recording(user) else 0 }}" data-expired="{{ 1 if plan.days_left < 0 and user.role != 'admin' else 0 }}" data-nocall="{{ 1 if no_line else 0 }}"{% set prefs = user_prefs(user) %} data-ringtone="{{ prefs.ringtone }}" data-ringvol="{{ prefs.ring_volume }}" data-autorec="{{ 1 if prefs.auto_record and has_recording(user) else 0 }}"></div>
+        <div id="dialerConfig" hidden data-admin="{{ 1 if user.role == 'admin' else 0 }}" data-provider="{{ user.provider or 'telnyx' }}" data-from="{{ user.phone_number or '' }}" data-recording="{{ 1 if has_recording(user) else 0 }}" data-expired="{{ 1 if plan.days_left < 0 and user.role != 'admin' else 0 }}" data-nocall="{{ 1 if no_line else 0 }}"{% set prefs = user_prefs(user) %} data-ringtone="{{ prefs.ringtone }}" data-ringvol="{{ prefs.ring_volume }}" data-autorec="{{ 1 if prefs.auto_record and has_recording(user) else 0 }}" data-zones="{{ call_zones(user)|join(',') }}" data-zonetext="{{ call_zone_text(user) }}"></div>
         <div id="rtcStatus" style="font-size:12px;margin-bottom:10px;color:var(--text-muted);">Connecting...</div>
         <p id="activityTitle" hidden>Ready to call</p>
         <p id="activitySub" hidden></p>
         <audio id="remoteAudio" autoplay playsinline></audio>
         <div id="incomingView" hidden>
-            <p class="incall-state">Incoming call</p>
+            <p class="incall-state" id="incomingState">Incoming call</p>
             <div class="incall-avatar">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg>
             </div>
@@ -173,6 +196,9 @@
             <svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg>
         </div>
         <div class="incall-number" id="inCallNumber"></div>
+        <div class="line-bar" id="lineBar" hidden></div>
+        <div class="xfer-bar" id="xferBar" hidden></div>
+        <div class="incall-msg" id="inCallMsg" hidden></div>
         <div class="incall-grid">
             <button type="button" class="incall-btn" id="muteBtn" onclick="toggleMute()">
                 <svg id="muteIcon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
@@ -193,6 +219,14 @@
             <button type="button" class="incall-btn" onclick="transferCall()">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 7h11l-3-3M18 7l-3 3"/><path d="M17 17H6l3 3M6 17l3-3"/></svg>
                 <span>Transfer</span>
+            </button>
+            <button type="button" class="incall-btn" id="swapBtn" onclick="swapCalls()" hidden>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 4v16M7 20l-3-3M7 20l3-3"/><path d="M17 20V4M17 4l-3 3M17 4l3 3"/></svg>
+                <span>Swap</span>
+            </button>
+            <button type="button" class="incall-btn" id="mergeBtn" onclick="mergeCalls()" hidden>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 4v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4"/><path d="M12 15v5"/></svg>
+                <span>Merge</span>
             </button>
             <button type="button" class="incall-btn" id="recBtn" onclick="toggleRec()" aria-label="Start or stop recording" title="Record call">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
@@ -229,7 +263,8 @@
         <div id="composeView" hidden>
             <button type="button" class="back-link" onclick="backToCall()">&#8592; Back to call</button>
             <h3 class="compose-title" id="composeTitle">New call</h3>
-            <input id="composeInput" class="number-display" placeholder="Enter a number" readonly>
+            <input id="composeInput" class="number-display" type="tel" inputmode="tel" autocomplete="off" placeholder="Enter or paste a number">
+            <button type="button" class="xfer-number" id="composePasteBtn" onclick="composePaste()" style="margin-bottom:14px">Paste number from clipboard</button>
             <div class="dial-pad">
                 <button class="dial-btn" type="button" onclick="composePress('1')">1</button>
                 <button class="dial-btn" type="button" onclick="composePress('2')">2</button>
@@ -252,6 +287,14 @@
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg>
                 </button>
             </div>
+        </div>
+
+        <div id="transferView" hidden>
+            <button type="button" class="back-link" onclick="backToCall()">&#8592; Back to call</button>
+            <h3 class="compose-title">Transfer call</h3>
+            <p class="xfer-empty" id="transferHint" style="padding-top:0">Pick a teammate. If they are on another call, the caller hears hold music and the call goes to them as soon as they are free (max 3 minutes).</p>
+            <div class="xfer-list" id="transferList"><p class="xfer-empty">Loading team...</p></div>
+            <button type="button" class="xfer-number" onclick="openCompose('transfer')">Transfer to a phone number</button>
         </div>
 
         <div id="callsView" hidden>

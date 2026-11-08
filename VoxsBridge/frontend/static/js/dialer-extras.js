@@ -61,7 +61,7 @@
         if (rest.length > 6) return '+' + c[0] + ' ' + rest.slice(0, rest.length - 6) + ' ' + rest.slice(-6);
         return '+' + c[0] + ' ' + rest;
     }
-    window.VBNumber = { toE164, pretty, home: HOME };
+    window.DNNumber = { toE164, pretty, home: HOME };
 
     // Show the caller's own number in a readable way.
     document.querySelectorAll('.rail-own-number').forEach((n) => {

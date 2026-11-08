@@ -11,14 +11,16 @@ import hashlib
 import hmac
 import json
 import math
+import re
 import os
 import secrets
 import time
 import urllib.error
 import urllib.parse
+import logging
+_log = logging.getLogger("voxsbridge.security")
 import urllib.request
 from html import escape as _html_escape
-from http.cookies import SimpleCookie
 
 
 # --------------------------------------------------------------------------
@@ -159,12 +161,45 @@ def http_bytes(url, *, headers=None, basic_auth=None, timeout=30, max_bytes=50 *
 # --------------------------------------------------------------------------
 DEFAULT_RATES = {
     # USD per billable minute. Editable by the admin in Settings.
+    # Keys without a country suffix are US / Canada (+1), as before.
     "telnyx_out": 0.0070,
     "telnyx_in": 0.0055,
     "twilio_out": 0.0140,
     "twilio_in": 0.0085,
+    # United Kingdom landline / geographic (+44 1, 2, 3 ...)
+    "telnyx_out_uk": 0.0060, "telnyx_in_uk": 0.0060,
+    "twilio_out_uk": 0.0135, "twilio_in_uk": 0.0130,
+    # United Kingdom mobile (+44 7)
+    "telnyx_out_uk_mobile": 0.0160, "telnyx_in_uk_mobile": 0.0100,
+    "twilio_out_uk_mobile": 0.0270, "twilio_in_uk_mobile": 0.0130,
+    # Every other country
+    "telnyx_out_other": 0.0500, "telnyx_in_other": 0.0150,
+    "twilio_out_other": 0.0600, "twilio_in_other": 0.0150,
+    # Twilio also bills the browser (Client) leg of every call
+    "twilio_client": 0.0040,
     "usd_to_pkr": 280.0,
 }
+RATE_ZONES = (("us", "US / Canada"), ("uk", "UK landline"), ("uk_mobile", "UK mobile"), ("other", "Other countries"))
+
+
+def rate_zone(number) -> str:
+    """Price zone of a phone number: us, uk, uk_mobile or other."""
+    d = re.sub(r"\D", "", str(number or ""))
+    if d.startswith("00"):
+        d = d[2:]
+    if d.startswith("1"):
+        return "us"
+    if d.startswith("447"):
+        return "uk_mobile"
+    if d.startswith("44"):
+        return "uk"
+    return "other"
+
+
+def rate_key(provider, direction, zone) -> str:
+    provider = provider if provider in ("telnyx", "twilio") else "telnyx"
+    leg = "in" if direction == "incoming" else "out"
+    return f"{provider}_{leg}" if zone == "us" else f"{provider}_{leg}_{zone}"
 
 
 def billable_minutes(seconds) -> int:
@@ -172,10 +207,12 @@ def billable_minutes(seconds) -> int:
     return math.ceil(seconds / 60) if seconds > 0 else 0
 
 
-def call_cost(seconds, provider, direction, rates) -> float:
-    provider = provider if provider in ("telnyx", "twilio") else "telnyx"
-    leg = "in" if direction == "incoming" else "out"
-    rate = float(rates.get(f"{provider}_{leg}", DEFAULT_RATES[f"{provider}_{leg}"]))
+def call_cost(seconds, provider, direction, rates, number=None) -> float:
+    """number = the dialed number for outgoing calls, our own number for incoming calls."""
+    key = rate_key(provider, direction, rate_zone(number) if number else "us")
+    rate = float(rates.get(key, DEFAULT_RATES[key]))
+    if provider == "twilio":
+        rate += float(rates.get("twilio_client", DEFAULT_RATES["twilio_client"]))
     return round(billable_minutes(seconds) * rate, 6)
 
 
@@ -271,16 +308,25 @@ class SecurityMiddleware:
         return out
 
     @staticmethod
-    def _cookie(headers, name):
-        raw = headers.get(b"cookie")
-        if not raw:
-            return ""
-        jar = SimpleCookie()
-        try:
-            jar.load(raw)
-        except Exception:
-            return ""
-        return jar[name].value if name in jar else ""
+    def _cookies(headers, name):
+        """All values of a cookie. Hand-parsed: SimpleCookie silently stops at the first
+        cookie it dislikes (JSON values, spaces), which made the CSRF cookie 'disappear'
+        when the browser held such a cookie from another script or extension."""
+        out = []
+        for part in (headers.get(b"cookie") or "").split(";"):
+            key, sep, value = part.strip().partition("=")
+            if sep and key.strip() == name:
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] == '"':
+                    value = value[1:-1]
+                if value:
+                    out.append(value)
+        return out
+
+    @classmethod
+    def _cookie(cls, headers, name):
+        values = cls._cookies(headers, name)
+        return values[0] if values else ""
 
     def _host_ok(self, value, host):
         try:
@@ -292,11 +338,22 @@ class SecurityMiddleware:
             return False
         return netloc == (host or "").lower() or netloc in self.trusted_hosts
 
-    async def _reject(self, send, reason):
-        body = json.dumps({"detail": "Security check failed. Please refresh the page and try again.",
-                           "reason": reason}).encode()
+    async def _reject(self, send, reason, html=False):
+        if html:
+            # A normal form post (not fetch): show a readable page instead of raw JSON.
+            body = ("<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
+                    "<title>Please try again</title><body style='font-family:system-ui;background:#0b0f19;color:#f1f5f9;"
+                    "display:grid;place-items:center;min-height:90vh'><div style='max-width:420px;text-align:center'>"
+                    "<h2>Please try again</h2><p style='color:#94a3b8'>Your page was open for a while, so the security "
+                    "check expired. Go back, refresh the page and submit again.</p>"
+                    "<p><a href='javascript:history.back()' style='color:#818cf8'>&larr; Go back</a></p></div>").encode()
+            ctype = b"text/html; charset=utf-8"
+        else:
+            body = json.dumps({"detail": "Security check failed. Please refresh the page and try again.",
+                               "reason": reason}).encode()
+            ctype = b"application/json"
         await send({"type": "http.response.start", "status": 403,
-                    "headers": [(b"content-type", b"application/json"),
+                    "headers": [(b"content-type", ctype),
                                 (b"cache-control", b"no-store")]})
         await send({"type": "http.response.body", "body": body})
 
@@ -306,16 +363,18 @@ class SecurityMiddleware:
         headers = self._headers(scope)
         method = scope.get("method", "GET").upper()
         path = scope.get("path", "")
-        cookie_token = self._cookie(headers, CSRF_COOKIE)
-        new_token = None if cookie_token else secrets.token_urlsafe(32)
+        cookie_tokens = self._cookies(headers, CSRF_COOKIE)
+        new_token = None if cookie_tokens else secrets.token_urlsafe(32)
 
         if method not in SAFE_METHODS and not path.startswith(self.exempt):
             host = headers.get(b"host", "")
             origin = headers.get(b"origin", "")
             referer = headers.get(b"referer", "")
+            origin_verified = False
             if origin and origin != "null":
                 if not self._host_ok(origin, host):
                     return await self._reject(send, "origin")
+                origin_verified = True
             elif referer and not self._host_ok(referer, host):
                 return await self._reject(send, "referer")
 
@@ -346,8 +405,15 @@ class SecurityMiddleware:
                         return {"type": "http.request", "body": body, "more_body": False}
                     return await receive()
                 receive = replay
-            if not cookie_token or not supplied or not hmac.compare_digest(cookie_token, supplied):
-                return await self._reject(send, "token")
+            if not supplied or not any(hmac.compare_digest(t, supplied) for t in cookie_tokens):
+                if not origin_verified:
+                    _log.warning("CSRF rejected %s %s: cookie=%s supplied=%s", method, path,
+                                 bool(cookie_tokens), bool(supplied))
+                    return await self._reject(send, "token", html="text/html" in headers.get(b"accept", ""))
+                # The browser proved the request comes from our own pages (Origin header matches
+                # the host; session cookie is SameSite=Lax). Accept it, so an old cached script or
+                # an unusual cookie jar can never block a real form.
+                _log.info("CSRF token missing but same-origin verified: %s %s", method, path)
 
         csp_header = b"content-security-policy-report-only" if self.report_only else b"content-security-policy"
         security = [

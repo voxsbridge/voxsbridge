@@ -23,8 +23,11 @@
         return originalFetch(input, init);
     };
     function stamp(form) {
-        if (!form || String(form.method || '').toLowerCase() !== 'post') return;
-        if (!sameOrigin(form.action || location.href)) return;
+        if (!form || !form.getAttribute) return;
+        // Read attributes, not form.method / form.action: an input named "method" or
+        // "action" (e.g. Payment Method) replaces those properties on the form element.
+        if (String(form.getAttribute('method') || '').toLowerCase() !== 'post') return;
+        if (!sameOrigin(form.getAttribute('action') || location.href)) return;
         let field = form.querySelector('input[name="csrf_token"]');
         if (!field) {
             field = document.createElement('input');
