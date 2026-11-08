@@ -78,6 +78,7 @@ const input = document.getElementById('numberInput');
     let ended = false;
     let lastState = '';
     let activeConfirmed = false;
+    let ringSeen = false;         // the far end is ringing (180/183 or ringback audio arrived)
     let answerHold = null;
     let rtpPackets = -1;
     let rtpStall = 0;
@@ -295,7 +296,7 @@ function markEnded(reason) {
             }
             ticks += 1;
             const grew = rtpPackets > base;
-            if (grew && ticks >= 2) {
+            if (grew && ticks >= 1) {
                 clearInterval(answerHold);
                 answerHold = null;
                 activeConfirmed = true;
@@ -314,9 +315,15 @@ function markEnded(reason) {
         if (ended) return;
         st = String(st || '').toLowerCase();
         if (onHold && st === 'active') st = 'held';          // browser-side hold
+        if ((st === 'early' || st === 'ringing') && activeCall && !String(activeCall.direction || '').toLowerCase().startsWith('in')) ringSeen = true;
         if (st === 'active' && !activeConfirmed) {
-            armAnswerCheck();
-            st = 'ringing';
+            if (ringSeen) {
+                // The phone already rang, so "active" now means the other side picked up.
+                activeConfirmed = true;
+            } else {
+                armAnswerCheck();
+                st = 'ringing';
+            }
         }
         if (!st || st === lastState) return;
         lastState = st;
@@ -592,6 +599,14 @@ function markEnded(reason) {
             client.on('telnyx.socket.message', (msg) => {
                 if (!activeCall || ended || !msg) return;
                 const blob = JSON.stringify(msg).toLowerCase();
+                // Far end is ringing: early media (183) or a ringing notice (180) for the call we placed.
+                const method = String(msg.method || '').toLowerCase();
+                if ((method === 'telnyx_rtc.media' || method === 'telnyx_rtc.ringing') && !activeConfirmed && !onHold &&
+                    !String(activeCall.direction || '').toLowerCase().startsWith('in')) {
+                    const p = msg.params || {};
+                    const cid = p.callID || p.callId || (p.dialogParams && p.dialogParams.callID) || '';
+                    if (!cid || cid === activeCall.id) { ringSeen = true; showState('early'); }
+                }
                 const endedNow = blob.includes('telnyx_rtc.bye') || blob.includes('normal_clearing') || blob.includes('call_rejected') || blob.includes('user_busy') || blob.includes('originator_cancel') || blob.includes('no_answer') || blob.includes('no_user_response');
                 if (!endedNow) return;
                 const params = msg.params || {};
@@ -668,6 +683,7 @@ function markEnded(reason) {
         ended = false;
         lastState = '';
         activeConfirmed = false;
+        ringSeen = false;
         if (answerHold) { clearInterval(answerHold); answerHold = null; }
         talkStart = 0;
         stopTimer();
@@ -1880,7 +1896,17 @@ function hangup() {
         }
         watchRemoteEnd(activeCall);
         mediaStopped(activeCall);
-        if (activeCall && activeCall.state) showState(String(activeCall.state).toLowerCase());
+        if (activeCall && !activeConfirmed && !ringSeen && rtpPackets > 0 &&
+            ['new', 'requesting', 'trying', ''].includes(lastState) &&
+            !String(activeCall.direction || '').toLowerCase().startsWith('in')) {
+            ringSeen = true;                // ringback tone is coming in: the phone is ringing
+            showState('early');
+        }
+        if (activeCall && activeCall.state) {
+            const s = String(activeCall.state).toLowerCase();
+            // Do not fall back to "Calling..." once the far end is known to be ringing.
+            if (!(ringSeen && ['new', 'requesting', 'trying'].includes(s))) showState(s);
+        }
     }, 700);
     document.addEventListener('keydown', (e) => {
         if (document.activeElement === input && e.key === 'Enter') makeCall();
