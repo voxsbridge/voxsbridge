@@ -3019,6 +3019,48 @@ async def monitor_recording_audio(rec_id: uuid.UUID, request: Request):
                "Content-Disposition": disp + '; filename="call-' + row["direction"] + "-" + stamp + ext + '"'}
     return _range_response(data, row["content_type"], request.headers.get("range"), headers)
 
+def _delete_monitor_rows(ids):
+    """Delete admin recordings (database rows + Storage objects). Returns how many were removed."""
+    if not ids:
+        return 0
+    with db_connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""DELETE FROM public.monitor_recordings WHERE id = ANY(%s::uuid[])
+                RETURNING storage, storage_path""", (ids,))
+            rows = cur.fetchall()
+    for r in rows:
+        if r["storage"] == "supabase" and r["storage_path"]:
+            try:
+                storage.delete(r["storage_path"])
+            except Exception:
+                log.warning("Could not delete admin recording object from storage")
+    return len(rows)
+
+@app.delete("/admin/monitor-recordings/{rec_id}")
+async def delete_monitor_recording(rec_id: uuid.UUID, request: Request):
+    require_admin(request)
+    if not _delete_monitor_rows([str(rec_id)]):
+        raise HTTPException(status_code=404, detail="Recording not found")
+    return {"deleted": 1}
+
+@app.post("/admin/monitor-recordings/delete")
+async def delete_monitor_recordings_bulk(request: Request):
+    """Admin: delete several recordings at once (ids from the Recordings page)."""
+    require_admin(request)
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    ids = []
+    for v in (data.get("ids") or [])[:500]:
+        try:
+            ids.append(str(uuid.UUID(str(v))))
+        except ValueError:
+            pass
+    if not ids:
+        raise HTTPException(status_code=422, detail="Select at least one recording")
+    return {"deleted": _delete_monitor_rows(ids)}
+
 @app.delete("/api/recordings/{rec_id}")
 async def delete_recording(rec_id: uuid.UUID, request: Request):
     user = get_current_user(request)
