@@ -4623,10 +4623,20 @@ def _crm_number(raw):
         raise HTTPException(status_code=422, detail="Phone must be E.164, e.g. +12025550123")
     return value
 
+def _user_country_code(user):
+    """Country code of the user's own line: US/Canada line -> '1', UK line -> '44'.
+    Lines outside the known zones fall back to UK, as before."""
+    zone = number_zone((user or {}).get("phone_number"))
+    return CALL_ZONES[zone][0] if zone in CALL_ZONES else "44"
+
 def _import_number(raw, default_cc="44"):
-    """Best-effort E.164 for messy import data. National numbers missing their
-    country code (e.g. a UK mobile '7717316354' or '07717316354') get the default
-    country code (UK). Returns None when it cannot be made into a valid number."""
+    """Best-effort E.164 for messy import data. Numbers written without a country
+    code get the country code of the importing user's line (default_cc):
+    US line: '2525550123' / '(252) 555-0123' -> +12525550123
+    UK line: '7717316354' / '07717316354'    -> +447717316354
+    Returns None when it cannot be made into a valid number."""
+    if isinstance(raw, float) and raw.is_integer():     # Excel stores numbers as 2525550123.0
+        raw = int(raw)
     v = re.sub(r"[^\d+]", "", str(raw or ""))
     if v.startswith("+"):
         return v if re.fullmatch(r"\+[1-9]\d{7,14}", v) else None
@@ -4636,6 +4646,14 @@ def _import_number(raw, default_cc="44"):
     if d.startswith("00"):                          # international access prefix
         d = d[2:]
         return "+" + d if re.fullmatch(r"[1-9]\d{7,14}", d) else None
+    if default_cc == "1":                           # US / Canada line
+        if len(d) == 10 and d[0] in "23456789":     # 252 555 0123
+            return "+1" + d
+        if len(d) == 11 and d.startswith("1") and d[1] in "23456789":
+            return "+" + d                          # 1 252 555 0123
+        if 11 <= len(d) <= 15 and d[0] != "0":      # another country, already with its code
+            return "+" + d
+        return None
     if d.startswith(default_cc) and len(d) >= 11:   # already carries the country code
         return "+" + d
     if d.startswith("0"):                           # national trunk 0 -> country code
@@ -4854,13 +4872,14 @@ async def crm_import(request: Request, file: UploadFile = File(...)):
         raise HTTPException(status_code=422, detail="Maximum 500 rows per import")
 
     added = 0; skipped = 0
+    home_cc = _user_country_code(user)     # leads get the country code of this user's own number
     try:
         with db_connect() as conn:
             with conn.cursor() as cur:
                 for (name, phone_raw, company, website, email, notes, consent_ok, dnc) in leads_in:
                     if dnc or not consent_ok:
                         skipped += 1; continue
-                    phone = _import_number(phone_raw)
+                    phone = _import_number(phone_raw, home_cc)
                     name = (name or "").strip()[:150]
                     if not phone or not name:
                         skipped += 1; continue
