@@ -1671,3 +1671,52 @@ body.light-theme .vb-callcard { background:rgba(255,255,255,.97); color:#0b1633;
 .vb-navbadge { display:inline-grid; place-items:center; min-width:19px; height:19px; padding:0 6px; margin-left:6px; border-radius:10px; background:#2563ff; color:#fff !important; font-size:10.5px; font-weight:800; vertical-align:1px; }
 .vb-navbadge[hidden] { display:none; }
 body.nav-collapsed .vb-navbadge { display:none; }
+
+
+/* ===== In-call screen: one status, and it fits the dialer on every screen (no scrolling) ===== */
+/* The line status ("Ready") is not needed while you are on a call; the call screen shows the call state once. */
+.dial-rail:has(#inCallView:not([hidden])) #rtcStatus { display: none !important; }
+.dial-rail:has(#inCallView:not([hidden])) .your-number { padding: 8px 12px !important; margin-bottom: 8px !important; }
+.dial-rail:has(#inCallView:not([hidden])) .your-number .rail-label { font-size: 10px; margin-bottom: 1px; }
+.dial-rail:has(#inCallView:not([hidden])) .rail-own-number { font-size: 15px !important; }
+/* Sizes follow the screen height, so short laptop screens get a smaller layout instead of a scrollbar. */
+.dial-rail #inCallView { padding-top: 2px !important; min-height: 0 !important; height: auto !important; justify-content: flex-start !important; }   /* was min-height: 100vh - 140px, which forced the scrollbar */
+.dial-rail #inCallView .incall-state { margin: 0 0 clamp(6px, 1.2vh, 12px) !important; font-size: 13px; }
+.dial-rail #inCallView .incall-avatar {
+    width: clamp(46px, 7.5vh, 68px) !important; height: clamp(46px, 7.5vh, 68px) !important;
+    box-shadow: 0 0 0 clamp(5px, 1vh, 9px) rgba(34, 197, 94, .16) !important;
+    margin-bottom: clamp(8px, 1.5vh, 14px) !important;
+}
+.dial-rail #inCallView .incall-avatar svg { width: 52%; height: 52%; }
+.dial-rail #inCallView .incall-number { font-size: clamp(17px, 2.6vh, 22px) !important; margin-bottom: clamp(8px, 1.8vh, 16px) !important; overflow-wrap: anywhere; text-align: center; }
+.dial-rail #inCallView .incall-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;   /* 4 per row: 2 rows instead of 3 */
+    width: 100%; max-width: 300px; gap: clamp(8px, 1.5vh, 14px) 4px !important;
+    margin-bottom: clamp(8px, 1.6vh, 16px) !important;
+}
+.dial-rail #inCallView .incall-btn { gap: 5px !important; font-size: 11.5px; min-width: 0; }
+.dial-rail #inCallView .incall-btn span { white-space: nowrap; }
+.dial-rail #inCallView .incall-btn svg {
+    width: clamp(42px, 6.2vh, 54px) !important; height: clamp(42px, 6.2vh, 54px) !important;
+    padding: clamp(11px, 1.7vh, 15px) !important;
+}
+.dial-rail #inCallView .hangup-big { width: clamp(50px, 7.4vh, 62px) !important; height: clamp(50px, 7.4vh, 62px) !important; margin-top: 2px !important; flex: none; }
+.dial-rail #inCallView .leave-btn { height: 40px; margin-bottom: 10px; }
+.dial-rail #inCallView .line-bar, .dial-rail #inCallView .xfer-bar { margin-bottom: 10px; }
+/* In-call keypad (DTMF) */
+.dial-rail #inCallView .dtmf-pad .dial-pad { gap: clamp(5px, 1vh, 8px) !important; }
+.dial-rail #inCallView .dtmf-pad .dial-btn { width: clamp(40px, 7vh, 64px) !important; height: clamp(40px, 7vh, 64px) !important; }
+/* Two or more lines: Swap / Merge are already in the line bar under the number, so the grid does not repeat them. */
+.dial-rail #inCallView:has(#lineBar:not([hidden])) :is(#swapBtn, #mergeBtn) { display: none !important; }
+/* Very short screens (small laptops, landscape phones): hide the big avatar circle. */
+@media (max-height: 560px) {
+    .dial-rail #inCallView:not(.keypad-open) .incall-avatar { display: none !important; }
+}
+/* Phones and short screens with extra rows (line bar, Leave call): drop the avatar circle to keep everything in view. */
+@media (max-height: 780px) {
+    .dial-rail #inCallView:has(#lineBar:not([hidden]), #leaveBtn:not([hidden]), #xferBar:not([hidden])) .incall-avatar { display: none !important; }
+}
+@media (max-height: 600px) {
+    .dial-rail #inCallView.keypad-open .incall-state { display: none; }
+    .dial-rail #inCallView .dtmf-display { min-height: 0; margin-bottom: 2px; }
+}

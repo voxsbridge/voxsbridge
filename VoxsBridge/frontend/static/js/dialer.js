@@ -2049,7 +2049,7 @@ function hangup() {
         if (!onHold && stream && stream.getAudioTracks && stream.getAudioTracks().some((t) => t.readyState === 'ended') && !ended) {
             markEnded('Call ended');
         }
-        if (!ended) rtcStatus.textContent = document.getElementById('activityTitle').textContent;
+        // (The line status above stays "Ready"; the call state is shown once, on the call screen.)
     }
     setInterval(() => {
         heldCalls.concat(confCalls).forEach((leg) => { if (callIsDead(leg)) dropLeg(leg, 'left the call'); });
