@@ -36,6 +36,9 @@ const input = document.getElementById('numberInput');
     let xfer = null;              // transfer in progress {id, call, name, timer}
     const MAX_LINES = 4;
     // Countries this line may call (empty = no limit). US = +1, UK = +44.
+    const ADV = cfg.dataset.adv === '1';
+    const LEAVE_OK = cfg.dataset.leave === '1';     // admin allowed "Leave call" for this user
+    const LEGTAG = cfg.dataset.legtag || '';
     const ZONES = (cfg.dataset.zones || '').split(',').filter(Boolean);
     const ZONE_TEXT = cfg.dataset.zonetext || '';
     function zoneOf(num) {
@@ -69,6 +72,7 @@ const input = document.getElementById('numberInput');
         if (z === 'UK') { const n = d.slice(2); return n.length < 9 || n.length > 10 || /^(999|112|911)/.test(n); }
         return false;
     }
+    let ringback = null;
     let onHold = false;
     let muted = false;
     let client = null;
@@ -116,6 +120,7 @@ const input = document.getElementById('numberInput');
         timerId = null;
     }
     function startTimer() {
+        stopRingback();
         if (!talkStart) {
             talkStart = Date.now();
             startMonitorRecording();      // compliance recording of every call for the account admin
@@ -156,6 +161,7 @@ function markEnded(reason) {
 
     stopRing();
     stopTimer();
+    stopRingback();
     if (xfer && (!activeCall || xfer.call === activeCall)) {
         const pending = xfer;
         if (!reason || String(reason).startsWith('Call ended')) reason = pending.done ? 'Transferred to ' + pending.name : reason;
@@ -171,6 +177,7 @@ function markEnded(reason) {
                 }).catch(() => {});
         }
     }
+    const wasAdvOut = ADV && activeCall && !talkStart && !String(activeCall.direction || '').toLowerCase().startsWith('in');
 
     if (answerHold) {
         clearInterval(answerHold);
@@ -214,6 +221,7 @@ function markEnded(reason) {
     window.dispatchEvent(new CustomEvent('voxsbridge:call-ended', {
         detail: { reason: message, seconds: sec || 0 }
     }));
+    if (wasAdvOut) showAdvancedResult();
 
     // Conference: the next person becomes the main line, the others stay.
     if (confCalls.length) {
@@ -262,6 +270,7 @@ function markEnded(reason) {
         call._endWatch = true;
         const pc = findPc(call);
         const end = () => {
+            if (call._leaving) return;         // "Leave call": this side is closed by leaveCall()
             // Only end the line this listener belongs to (other lines may be on hold / in a conference).
             if (activeCall !== call) {
                 const side = sideLegById(call.id);
@@ -358,6 +367,7 @@ function markEnded(reason) {
         if (call.on && !call._dnWatched) {
             call._dnWatched = true;
             call.on('telnyx.notification', () => {
+                if (call._leaving) return;     // "Leave call": this side is closed by leaveCall()
                 // This listener belongs to ONE line. If that line is on hold / in a
                 // conference / already gone, it must not end the call you are on now.
                 if (activeCall !== call) {
@@ -719,7 +729,10 @@ function markEnded(reason) {
                     audio: true,
                     remoteElement: 'remoteAudio'
                 };
+                // Advanced calling: the server places the call, so it can be transferred / left.
+                if (ADV && LEGTAG) opts.customHeaders = [{ name: 'X-DN-Leg', value: LEGTAG }];
                 activeCall = client.newCall(opts);
+                if (ADV) startRingback();
             }
         } catch (err) {
             placing = false;
@@ -794,7 +807,7 @@ function hangup() {
         const outgoing = activeCall && !String(activeCall.direction || '').toLowerCase().startsWith('in');
         const twilioLine = !!(activeCall && activeCall._twilio);
         if (twilioLine) pickerNote('Pick a teammate. The caller is moved to them right away and your side of the call ends. If they do not answer, the caller can leave them a voicemail.');
-        else if (outgoing) pickerNote('Outgoing calls cannot be transferred. Transfer works on incoming calls.', true);
+        else if (outgoing && !ADV) pickerNote('Outgoing calls can be transferred after the admin turns on Advanced calling for your account. Incoming calls can be transferred now.', true);
         else pickerNote('Pick a teammate. If they are on another call, the caller hears hold music and the call goes to them as soon as they are free (max 3 minutes).');
         try {
             const res = await fetch(twilioLine ? '/api/twilio/transfer/targets' : '/api/transfer/targets', { cache: 'no-store' });
@@ -936,6 +949,44 @@ function hangup() {
         if (xfer && xfer.timer) clearInterval(xfer.timer);
         xfer = null;
         renderXfer({});
+    }
+    async function showAdvancedResult() {
+        try {
+            await new Promise((r) => setTimeout(r, 900));
+            const res = await fetch('/api/advanced-call/result', { cache: 'no-store' });
+            const data = await res.json();
+            if (data && data.status === 'failed' && data.reason && !activeCall) {
+                setStatus(data.reason);
+                const title = document.getElementById('activityTitle');
+                if (title) title.textContent = data.reason;
+            }
+        } catch (e) {}
+    }
+    // Ringback tone for Advanced calls (the server dials, so no carrier ringback).
+    function startRingback() {
+        stopRingback();
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        try {
+            const ctx = new Ctx();
+            const gain = ctx.createGain();
+            gain.gain.value = 0;
+            gain.connect(ctx.destination);
+            [440, 480].forEach((f) => { const o = ctx.createOscillator(); o.frequency.value = f; o.connect(gain); o.start(); });
+            const cycle = () => {
+                const t = ctx.currentTime;
+                gain.gain.setValueAtTime(0.035, t);
+                gain.gain.setValueAtTime(0, t + 2);
+            };
+            cycle();
+            ringback = { ctx: ctx, timer: setInterval(cycle, 6000) };
+        } catch (e) { ringback = null; }
+    }
+    function stopRingback() {
+        if (!ringback) return;
+        clearInterval(ringback.timer);
+        try { ringback.ctx.close(); } catch (e) {}
+        ringback = null;
     }
     function openCompose(mode) {
         composeMode = mode;
@@ -1188,6 +1239,124 @@ function hangup() {
         showInCall(legNumber(activeCall));
         setStatus('Conference · ' + (confCalls.length + 1) + ' callers');
     }
+    // ---- Leave call: you leave, the two other callers stay connected (server bridges them).
+    function leaveTargets() {
+        if (!LEAVE_OK || !activeCall || activeCall._twilio || xfer || ended) return null;
+        const legs = [activeCall].concat(confCalls, heldCalls);
+        if (legs.length !== 2) return null;
+        // Outgoing calls are only server-controlled with Advanced calling.
+        if (!ADV && legs.some((c) => !String(c.direction || '').toLowerCase().startsWith('in'))) return null;
+        return legs;
+    }
+    function syncLeaveBtn() {
+        const b = document.getElementById('leaveBtn');
+        if (b) b.hidden = !leaveTargets();
+    }
+    function askLeave(text, ok, title) {
+        const ask = window.dnConfirmShared || window.dnConfirm;
+        return ask ? ask(text, ok, title) : Promise.resolve(window.confirm(text));
+    }
+    function showNum(n) {
+        return (window.DNNumber && window.DNNumber.pretty && n) ? window.DNNumber.pretty(n) : (n || 'Caller');
+    }
+    async function leaveCall() {
+        let legs = leaveTargets();
+        if (!legs) return setStatus('Leave call works when exactly two other people are on the call', 'var(--danger)');
+        const nums = legs.map((c) => legNumber(c) || '');
+        const ok = await askLeave(showNum(nums[0]) + ' and ' + showNum(nums[1]) + ' stay connected and keep talking. ' +
+            'The call stays on your account (both lines are billed per minute) until one of them hangs up.',
+            'Leave call', 'Leave the call?');
+        if (!ok) return;
+        legs = leaveTargets();
+        if (!legs) return setStatus('The call changed. Try again.', 'var(--danger)');
+        const btn = document.getElementById('leaveBtn');
+        if (btn) btn.disabled = true;
+        setStatus('Connecting them...');
+        legs.forEach((c) => { c._leaving = true; });
+        const ids = legs.map((c) => c === activeCall ? logId : ((c._dn && c._dn.logId) || c._dnLog || null)).filter(Boolean);
+        try {
+            const res = await fetch('/api/conference/leave', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ numbers: legs.map((c) => legNumber(c) || ''), log_ids: ids })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.detail || 'Could not leave the call');
+        } catch (err) {
+            legs.forEach((c) => { c._leaving = false; });
+            if (btn) btn.disabled = false;
+            setStatus(err.message, 'var(--danger)');
+            if (legs.some(callIsDead)) {          // a line dropped meanwhile: let the normal handlers run
+                legs.filter(callIsDead).forEach((c) => {
+                    if (c === activeCall) markEnded(endReason(c));
+                    else { const side = sideLegById(c.id); if (side) dropLeg(side, 'left the call'); }
+                });
+            }
+            return;
+        }
+        if (btn) btn.disabled = false;
+        // Your side ends here; their call goes on without you.
+        teardownMixer();
+        const others = confCalls.splice(0).concat(heldCalls.splice(0));
+        syncHeld();
+        others.forEach((c) => {
+            detachLegAudio(c);
+            finishLeg(c);
+            try { if (c.hangup) c.hangup(); } catch (e) {}
+        });
+        const main = activeCall;
+        try { if (main && main.hangup) main.hangup(); } catch (e) {}
+        markEnded('You left · they keep talking');
+        loadLeftCalls();
+    }
+    // Small card: calls you left that are still running.
+    let leftTimer = null, leftTicks = 0;
+    async function loadLeftCalls() {
+        if (!LEAVE_OK) return;
+        let list = null;
+        try {
+            const r = await fetch('/api/conference/left', { cache: 'no-store' });
+            if (r.ok) list = (await r.json()).calls || [];
+        } catch (e) {}
+        if (list) renderLeft(list);
+    }
+    function renderLeft(list) {
+        const box = document.getElementById('leftCalls');
+        if (!box) return;
+        box._at = Date.now();
+        if (!list.length) {
+            box.hidden = true;
+            box.innerHTML = '';
+            if (leftTimer) { clearInterval(leftTimer); leftTimer = null; }
+            return;
+        }
+        box.innerHTML = list.map((c) => '<div class="left-card"><b>● Still talking without you</b><small>' +
+            esc(showNum(c.number_a)) + ' ↔ ' + esc(showNum(c.number_b)) + '</small><div class="lc-time" data-secs="' +
+            Number(c.seconds || 0) + '">' + clock(Number(c.seconds || 0)) + '</div><small>Ends automatically after ' +
+            Math.round(Number(c.max_seconds || 7200) / 60) + ' min · shows in Call Logs when it ends</small>' +
+            '<button type="button" onclick="endLeftCall(\'' + esc(c.id) + '\')">End their call</button></div>').join('');
+        box.hidden = !!activeCall;
+        if (!leftTimer) leftTimer = setInterval(tickLeft, 1000);
+    }
+    function tickLeft() {
+        const box = document.getElementById('leftCalls');
+        if (!box || !box.innerHTML) return;
+        box.hidden = !!activeCall || !!incomingCall;
+        const extra = Math.floor((Date.now() - (box._at || Date.now())) / 1000);
+        box.querySelectorAll('.lc-time').forEach((el) => { el.textContent = clock(Number(el.dataset.secs || 0) + extra); });
+        if (++leftTicks % 10 === 0) loadLeftCalls();
+    }
+    async function endLeftCall(id) {
+        if (!(await askLeave('This ends the call between the two of them.', 'End their call', 'End their call?'))) return;
+        try {
+            const r = await fetch('/api/conference/left/' + encodeURIComponent(id) + '/end', { method: 'POST' });
+            if (!r.ok) setStatus('That call has already ended');
+        } catch (e) {}
+        loadLeftCalls();
+    }
+    if (LEAVE_OK) {
+        setInterval(syncLeaveBtn, 1000);
+        setTimeout(loadLeftCalls, 1500);
+    }
     function promoteLeg(call) {
         activeCall = call;
         unstash(call);
@@ -1294,6 +1463,7 @@ function hangup() {
         }
         const html = parts.join('');
         if (bar._html !== html) { bar.innerHTML = html; bar._html = html; }
+        syncLeaveBtn();
         bar.hidden = !parts.length;
         const swapBtn = document.getElementById('swapBtn');
         const mergeBtn = document.getElementById('mergeBtn');

@@ -35,7 +35,7 @@ import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import voice_helpers as vh  # noqa: E402  (sibling module; works for both start commands)
-import call_transfer as ct  # noqa: E402  (agent transfer, add call, conference)
+import call_transfer as ct  # noqa: E402  (agent transfer + advanced calling + leave call)
 from starlette.concurrency import run_in_threadpool  # noqa: E402
 import ring_group as rg  # noqa: E402  (shared numbers: ring every free member)
 import website_orders as wo  # noqa: E402  (orders from the marketing website)
@@ -99,7 +99,8 @@ import contextvars
 def _tx_env(prefix):
     g = lambda k: os.getenv(prefix + k, "").strip()
     return {"api_key": g("API_KEY"), "connection_id": g("CONNECTION_ID"), "voice_app_id": g("VOICE_APP_ID"),
-            "public_key": g("PUBLIC_KEY"), "sms_profile_id": g("SMS_PROFILE_ID")}
+            "public_key": g("PUBLIC_KEY"), "sms_profile_id": g("SMS_PROFILE_ID"),
+            "adv_connection_id": g("ADV_CONNECTION_ID")}
 
 TELNYX_ACCOUNTS = {"t1": dict(_tx_env("TELNYX_"), label="Telnyx 1")}
 if os.getenv("TELNYX2_API_KEY", "").strip():
@@ -298,6 +299,8 @@ def _db_user(row):
         "recording_premium": row["recording_premium"],
         "dnd_enabled": row["dnd_enabled"],
         "sms_enabled": bool(row.get("sms_enabled", False)),
+        "adv_calling": bool(row.get("adv_calling", False)),
+        "conf_leave": bool(row.get("conf_leave", False)),
         "sms_credits": row.get("sms_credits"),
         "telnyx_account": tx_key(row.get("telnyx_account") or "t1"),
         "call_countries": row.get("call_countries") or "",
@@ -1826,10 +1829,11 @@ async def save_user_all(request: Request):
         credits = int(credits_raw)
     zones = ",".join(z for z in CALL_ZONES if z in f.getlist("zones"))
     want_rec, want_power = bool(f.get("recording")), bool(f.get("power"))
-    want_sms = bool(f.get("sms"))
+    want_sms, want_adv = bool(f.get("sms")), bool(f.get("adv"))
+    want_leave = bool(f.get("leave"))
     with db_connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("""SELECT id,role,sms_enabled FROM public.voxsbridge_users
+            cur.execute("""SELECT id,role,sms_enabled,adv_calling FROM public.voxsbridge_users
                 WHERE email=%s AND is_active=TRUE FOR UPDATE""", (old_email,))
             target = cur.fetchone()
             if not target or target["role"] == "admin":
@@ -1838,12 +1842,12 @@ async def save_user_all(request: Request):
             if cur.fetchone():
                 return bounce("Email already exists")
             cur.execute("""UPDATE public.voxsbridge_users SET name=%s,email=%s,plan_name=%s,plan_renewal=%s::date,
-                recording_premium=%s,power_enabled=%s,sms_credits=%s,call_countries=%s WHERE id=%s""",
-                        (name, new_email, plan_name, renewal, want_rec, want_power, credits, zones,
+                recording_premium=%s,power_enabled=%s,sms_credits=%s,call_countries=%s,conf_leave=%s WHERE id=%s""",
+                        (name, new_email, plan_name, renewal, want_rec, want_power, credits, zones, want_leave,
                          target["id"]))
     refresh_users()
     problems = []
-    # SMS talks to the phone provider, so it reuses the existing toggle handler.
+    # SMS and Advanced calling talk to the phone provider, so they reuse the existing toggle handlers.
     async def flip(handler, current, wanted):
         if bool(current) == wanted:
             return
@@ -1852,6 +1856,7 @@ async def save_user_all(request: Request):
         if "error=" in loc:
             problems.append(urllib.parse.unquote(loc.split("error=", 1)[1].split("&")[0]).replace("+", " "))
     await flip(toggle_sms, target["sms_enabled"], want_sms)
+    await flip(toggle_advanced_calling, target["adv_calling"], want_adv)
     if problems:
         return bounce("Saved, but: " + " | ".join(problems))
     return RedirectResponse("/users?updated=1", status_code=303)
@@ -2090,6 +2095,7 @@ def call_block_message(user, to_number=None):
 templates.env.globals["call_zones"] = call_zones
 templates.env.globals["call_zone_text"] = call_zone_text
 templates.env.globals["has_sms"] = has_sms
+templates.env.globals["leg_tag"] = ct.leg_tag
 templates.env.globals["plan_status"] = plan_status
 
 @app.get("/logout")
@@ -2292,11 +2298,11 @@ def _set_user_telnyx_account(user_id, acct):
                     cur.execute("UPDATE public.voxsbridge_users SET telnyx_account=%s WHERE id=%s", (acct, user_id))
                 return
             cur.execute("""UPDATE public.voxsbridge_users SET telnyx_account=%s, credential_id=NULL,
-                sip_username=NULL WHERE id=%s""", (acct, user_id))
+                sip_username=NULL, adv_calling=false WHERE id=%s""", (acct, user_id))
     old_acct, old_cred = tx_key(row["telnyx_account"]), row["credential_id"]
     for u in users_db.values():
         if str(u.get("id")) == str(user_id):
-            u.update(telnyx_account=acct, credential_id="", sip_username="")
+            u.update(telnyx_account=acct, credential_id="", sip_username="", adv_calling=False)
     if old_cred:
         try:
             with tx_ctx(old_acct):
@@ -3354,10 +3360,10 @@ async def telnyx_webhook(request: Request, background: BackgroundTasks):
         return JSONResponse({"ok": True})
     client_state = _cs_decode(payload.get("client_state"))
     try:
-        if ct.handle_webhook(event, payload, client_state):
+        if ct.handle_webhook(event, payload, client_state, _user_by_id_fast):
             return JSONResponse({"ok": True})
     except Exception:
-        log.exception("Transfer webhook handling failed (%s)", event)
+        log.exception("Transfer/advanced-calling webhook handling failed (%s)", event)
     if client_state.startswith("vm:"):
         _handle_voicemail_event(event, payload, client_state[3:], background)
         if event != "call.hangup":
@@ -3570,6 +3576,15 @@ def _twilio_voicemail_twiml(log_id):
             f'<Record maxLength="{VOICEMAIL_MAX_SECONDS}" playBeep="true" trim="trim-silence" '
             f'action="/twilio/voicemail-done" method="POST" '
             f'recordingStatusCallback="{vh.xml_attr(callback)}" recordingStatusCallbackMethod="POST"/>')
+
+def _user_by_id_fast(user_id):
+    """In-memory user first (saves a database trip while a call is being set up);
+    falls back to the database when the cached copy is missing or not allowed."""
+    uid = str(user_id or "")
+    for u in list(users_db.values()):
+        if str(u.get("id") or "") == uid and u.get("adv_calling") and u.get("is_active", True):
+            return u
+    return _db_user_by_id(user_id)
 
 def _db_user_by_id(user_id):
     with db_connect() as conn:
@@ -4444,6 +4459,59 @@ def _handle_telnyx_sms_event(event, p):
                     cur.execute("""UPDATE public.sms_messages SET status=%s, error=CASE WHEN %s<>'' THEN %s ELSE error END
                         WHERE provider_id=%s AND direction='out'""", (status, error, error, p["id"]))
     return {"ok": True}
+
+@app.post("/users/advanced-calling")
+async def toggle_advanced_calling(request: Request, email: str = Form(...)):
+    """Advanced calling = outgoing calls go through the server (needed to
+    transfer OUTGOING calls). The user gets a new calling login on the
+    "VoxsBridge Advanced" Telnyx connection; turning it off moves them back."""
+    admin = get_current_user(request)
+    if not admin or admin.get("role") != "admin":
+        return RedirectResponse(url="/login", status_code=302)
+    email = email.strip().lower()
+    back = urllib.parse.urlsplit(request.headers.get("referer") or "").path or "/users"
+    if not (back.startswith("/users") or back.startswith("/customers/")):
+        back = "/users"
+    def fail(msg):
+        return RedirectResponse(url=back + "?error=" + urllib.parse.quote(msg), status_code=302)
+    with db_connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT id,adv_calling,credential_id,provider,telnyx_account FROM public.voxsbridge_users
+                WHERE email=%s""", (email,))
+            row = cur.fetchone()
+    if row:
+        tx_use(row["telnyx_account"])        # work on the user's Telnyx account
+    if not ct.adv_conn():
+        return fail(f"Add the Advanced connection id for {tx_conf()['label']} in Render first (see the update notes).")
+    if not row:
+        return fail("User not found")
+    if (row["provider"] or "telnyx") != "telnyx":
+        return fail("Advanced calling is only for Telnyx lines")
+    turn_on = not bool(row["adv_calling"])
+    connection = ct.adv_conn() if turn_on else tx_conf()["connection_id"]
+    try:
+        created = _telnyx_request("POST", "/v2/telephony_credentials", {
+            "connection_id": connection, "name": f"voxsbridge-{email}"[:60],
+            "tag": "voxsbridge-adv" if turn_on else "voxsbridge"})
+    except HTTPException as exc:
+        log.warning("Advanced calling credential failed for %s: %s", email, exc.detail)
+        return fail("Telnyx did not create the calling login. Check the Advanced connection id.")
+    data = created.get("data", {})
+    if not data.get("id"):
+        return fail("Telnyx did not create the calling login")
+    with db_connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""UPDATE public.voxsbridge_users SET adv_calling=%s, credential_id=%s, sip_username=%s
+                WHERE id=%s""", (turn_on, data["id"], data.get("sip_username", ""), row["id"]))
+    if email in users_db:
+        users_db[email].update(adv_calling=turn_on, credential_id=data["id"],
+                               sip_username=data.get("sip_username", ""))
+    if row["credential_id"]:
+        try:
+            _telnyx_request("DELETE", f"/v2/telephony_credentials/{row['credential_id']}")
+        except Exception:
+            log.info("Old calling login %s was not deleted", row["credential_id"])
+    return RedirectResponse(url=back + "?created=1", status_code=302)
 
 @app.post("/users/call-countries")
 async def set_call_countries(request: Request):
@@ -5784,7 +5852,7 @@ def _xfer_user(request):
 @app.get("/api/transfer/targets")
 async def transfer_targets(request: Request):
     user = _xfer_user(request)
-    return {"agents": ct.targets(user)}
+    return {"agents": ct.targets(user), "adv_calling": bool(user.get("adv_calling"))}
 
 @app.post("/api/transfer")
 async def transfer_start(request: Request):
@@ -5818,6 +5886,37 @@ async def transfer_cancel(tid: uuid.UUID, request: Request):
 async def transfer_decline(tid: uuid.UUID, request: Request):
     user = _xfer_user(request)
     return {"declined": ct.decline(str(tid), user)}
+
+# ---- Leave call: the agent leaves, the two other callers keep talking (admin allows per user)
+@app.post("/api/conference/leave")
+async def conference_leave(request: Request):
+    user = _xfer_user(request)
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    numbers = [str(n)[:40] for n in (data.get("numbers") or [])][:4]
+    try:
+        return ct.leave(user, numbers, data.get("log_ids") or [])
+    except ct.TransferError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+@app.get("/api/conference/left")
+async def conference_left(request: Request):
+    user = _xfer_user(request)
+    return {"calls": ct.left_calls(user) if user.get("conf_leave") else []}
+
+@app.post("/api/conference/left/{lid}/end")
+async def conference_left_end(lid: uuid.UUID, request: Request):
+    user = _xfer_user(request)
+    if not ct.end_left(str(lid), user):
+        raise HTTPException(status_code=404, detail="This call has already ended")
+    return {"ended": True}
+
+@app.get("/api/advanced-call/result")
+async def advanced_call_result(request: Request):
+    user = _xfer_user(request)
+    return ct.last_result(user)
 
 @app.post("/api/admin/users/{user_id}/force-logout")
 async def admin_force_logout(user_id: uuid.UUID, request: Request):
