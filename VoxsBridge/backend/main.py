@@ -505,6 +505,9 @@ CREATE INDEX IF NOT EXISTS monitor_recordings_age_idx ON public.monitor_recordin
 ALTER TABLE public.monitor_recordings ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.monitor_recordings FROM anon, authenticated;
 """ + ct.SCHEMA_SQL + rg.SCHEMA_SQL + wo.SCHEMA_SQL + """
+-- VB-2: remember why a login was ended, so the sign-in page can say why.
+ALTER TABLE public.user_sessions ADD COLUMN IF NOT EXISTS revoke_reason text;
+
 -- VB-1 (one time): move the old VoxsBridge SMS allowance (sms_limit / sms_used) to
 -- sms_credits, and copy old text history from voxsbridge_sms into sms_messages.
 DO $vb$
@@ -794,7 +797,9 @@ def create_session(email: str) -> str:
             row=cur.fetchone()
             if not row:
                 raise HTTPException(status_code=401,detail="Account disabled")
-            cur.execute("UPDATE public.user_sessions SET revoked_at=NOW() WHERE user_id=%s AND revoked_at IS NULL",(row["id"],))
+            # One account = one place at a time: a new sign-in ends the older ones.
+            cur.execute("""UPDATE public.user_sessions SET revoked_at=NOW(), revoke_reason='other_device'
+                WHERE user_id=%s AND revoked_at IS NULL""",(row["id"],))
             cur.execute("INSERT INTO public.user_sessions(user_id,token_hash,expires_at) VALUES(%s,%s,NOW()+INTERVAL '24 hours')",(row["id"],token_hash))
     # Browser session guard tears down local WebRTC calls. Voice API calls
     # tracked by incoming_call_groups are also terminated carrier-side.
@@ -807,7 +812,8 @@ def revoke_session(token):
     _session_invalidate(token)
     with db_connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("UPDATE public.user_sessions SET revoked_at=NOW() WHERE token_hash=%s",(hashlib.sha256(token.encode()).hexdigest(),))
+            cur.execute("""UPDATE public.user_sessions SET revoked_at=NOW(), revoke_reason=COALESCE(revoke_reason,'logout')
+                WHERE token_hash=%s""",(hashlib.sha256(token.encode()).hexdigest(),))
 
 # Short-lived cache of the per-request session lookup. Without it every single
 # API call (presence, SMS badge, tokens, webhooks for logged-in views) hits the
@@ -861,8 +867,8 @@ def get_current_user(request: Request):
 async def session_status(request: Request):
     user = get_current_user(request)
     if not user:
-        return JSONResponse({"active": False}, status_code=401,
-                            headers={"Cache-Control": "no-store"})
+        return JSONResponse({"active": False, "reason": _signed_out_reason(request.cookies.get("session_token"))},
+                            status_code=401, headers={"Cache-Control": "no-store"})
     return JSONResponse({"active": True, "user_id": user["id"]},
                         headers={"Cache-Control": "no-store"})
 
@@ -892,9 +898,43 @@ async def home(request: Request):
         return RedirectResponse(url="/dashboard", status_code=302)
     return templates.TemplateResponse(request=request, name="login.html")
 
+SIGNED_OUT_NOTICES = {
+    "other_device": "You were signed out because this account was just signed in on another device or browser. "
+                    "An account can be used in one place at a time.",
+    "admin": "You were signed out by the administrator.",
+    "password": "The password for this account was changed, so you were signed out. Sign in with the new password.",
+    "disabled": "This account has been turned off. Contact support.",
+    "expired": "Your session expired. Please sign in again.",
+}
+
+def _signed_out_reason(token):
+    """Why the login behind this (old) cookie ended, or '' if unknown."""
+    if not token:
+        return ""
+    try:
+        with db_connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT revoke_reason, revoked_at, expires_at < NOW() AS expired
+                    FROM public.user_sessions WHERE token_hash=%s""", (hashlib.sha256(token.encode()).hexdigest(),))
+                r = cur.fetchone()
+    except Exception:
+        return ""
+    if not r:
+        return ""
+    if r["revoked_at"] is None:
+        return "expired" if r["expired"] else ""
+    return r["revoke_reason"] or ""
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse(request=request, name="login.html")
+    reason = request.query_params.get("reason", "")
+    if reason not in SIGNED_OUT_NOTICES:
+        reason = _signed_out_reason(request.cookies.get("session_token"))
+    ctx = {"notice": SIGNED_OUT_NOTICES[reason]} if reason in SIGNED_OUT_NOTICES else {}
+    response = templates.TemplateResponse(request=request, name="login.html", context=ctx)
+    if request.cookies.get("session_token") and reason:
+        response.delete_cookie("session_token")      # show the message once
+    return response
 
 @app.post("/login")
 async def login(request: Request, email: str = Form(...), password: str = Form(...)):
@@ -1304,9 +1344,9 @@ async def customer_update(request:Request,email:str,name:str=Form(...),plan_name
             if new_password:
                 cur.execute('UPDATE public.voxsbridge_users SET password_hash=%s WHERE id=%s',(hash_password(new_password),row['id']))
                 # Password reset by admin: old logins stop working.
-                cur.execute('UPDATE public.user_sessions SET revoked_at=NOW() WHERE user_id=%s AND revoked_at IS NULL',(row['id'],))
+                cur.execute("UPDATE public.user_sessions SET revoked_at=NOW(), revoke_reason='password' WHERE user_id=%s AND revoked_at IS NULL",(row['id'],))
             if is_active!='true':
-                cur.execute('UPDATE public.user_sessions SET revoked_at=NOW() WHERE user_id=%s AND revoked_at IS NULL',(row['id'],))
+                cur.execute("UPDATE public.user_sessions SET revoked_at=NOW(), revoke_reason='disabled' WHERE user_id=%s AND revoked_at IS NULL",(row['id'],))
     refresh_users()
     return RedirectResponse('/customers/'+email+'?saved=1',status_code=303)
 
@@ -1877,7 +1917,7 @@ async def delete_user(request: Request, email: str = Form(...)):
                 return RedirectResponse(url="/users?error=User+not+found+or+protected", status_code=303)
             cur.execute("UPDATE public.voxsbridge_users SET is_active=FALSE,phone_number=NULL WHERE id=%s", (target["id"],))
             cur.execute("DELETE FROM public.caller_id_assignments WHERE user_id=%s", (target["id"],))
-            cur.execute("UPDATE public.user_sessions SET revoked_at=NOW() WHERE user_id=%s AND revoked_at IS NULL", (target["id"],))
+            cur.execute("UPDATE public.user_sessions SET revoked_at=NOW(), revoke_reason='disabled' WHERE user_id=%s AND revoked_at IS NULL", (target["id"],))
     try:
         _terminate_user_inbound_calls(target["id"])
     except Exception:
@@ -5203,7 +5243,7 @@ async def settings_password(request: Request, current_password: str = Form(...),
         with conn.cursor() as cur:
             cur.execute("UPDATE public.voxsbridge_users SET password_hash=%s WHERE id=%s", (new_hash, user["id"]))
             # Sign out every other device; this browser stays logged in.
-            cur.execute("""UPDATE public.user_sessions SET revoked_at=NOW()
+            cur.execute("""UPDATE public.user_sessions SET revoked_at=NOW(), revoke_reason='password'
                 WHERE user_id=%s AND revoked_at IS NULL AND token_hash<>%s""",
                 (user["id"], hashlib.sha256(token.encode()).hexdigest()))
     if user["email"] in users_db:
@@ -5925,7 +5965,7 @@ async def admin_force_logout(user_id: uuid.UUID, request: Request):
         raise HTTPException(status_code=403,detail="Admin only")
     with db_connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("UPDATE public.user_sessions SET revoked_at=NOW() WHERE user_id=%s AND revoked_at IS NULL",(user_id,))
+            cur.execute("UPDATE public.user_sessions SET revoked_at=NOW(), revoke_reason='admin' WHERE user_id=%s AND revoked_at IS NULL",(user_id,))
             count=cur.rowcount
     terminated = _terminate_user_inbound_calls(user_id)
     return {"revoked_sessions": count,

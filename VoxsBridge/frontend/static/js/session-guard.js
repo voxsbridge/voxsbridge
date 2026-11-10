@@ -8,11 +8,13 @@
       const response = await fetch('/api/session/status', {credentials:'same-origin',cache:'no-store'});
       if (response.status !== 401 && response.status !== 403) return;
       revoked = true;
+      let reason = 'session-revoked';
+      try { const d = await response.json(); if (d && d.reason) reason = d.reason; } catch (_) {}
       // Stop any local WebRTC legs exposed by the dialer, then disconnect SDK.
       try { window.VoxsBridge?.hangup?.(); } catch (_) {}
       try { window.VoxsBridge?.disconnect?.(); } catch (_) {}
       window.dispatchEvent(new CustomEvent('voxsbridge:session-revoked'));
-      location.replace('/login?reason=session-revoked');
+      location.replace('/login?reason=' + encodeURIComponent(reason));
     } catch (_) { /* network interruption is not proof of revoked login */ }
   }
   setInterval(check, 5000);
